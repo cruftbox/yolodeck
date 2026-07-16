@@ -27,6 +27,16 @@ const EMPTY_PIN_BG = "#26292e";
 export type SessionSlotSettings = {
   /** Project directory this key claims, e.g. "C:\\Code\\orbis". Empty means overflow. */
   pin?: string;
+  /**
+   * Stable display name. Overrides the auto name (basename of the session's cwd).
+   *
+   * The auto name is volatile — it tracks the session's *current working directory*,
+   * which moves during a session: a session can read as "yolodeck", then "micha" (the
+   * home dir), then a raw GUID (when a tool runs in the session's temp dir, which is
+   * named after the session UUID). A label pins the name so a key always reads the same
+   * thing regardless of where the session's cwd wanders.
+   */
+  label?: string;
 };
 
 /**
@@ -131,12 +141,15 @@ export class SessionButton extends ManagedAction {
     for (const act of this.actions) {
       if (!("coordinates" in act)) continue;
       const key = act as KeyAction;
+      const settings = this.settings.get(key.id);
       const session = this.resolve(key);
-      const pin = this.settings.get(key.id)?.pin?.trim();
+      const pin = settings?.pin?.trim();
+      const label = settings?.label?.trim();
 
       let image: string;
       if (session) {
-        const lines: KeyLine[] = [{ text: basename(session.cwd) || session.cwd, bold: true }];
+        // A label wins over the auto name, which is volatile (see SessionSlotSettings).
+        const lines: KeyLine[] = [{ text: label || basename(session.cwd) || session.cwd, bold: true }];
         if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
         image = keyImage({
           bg: STATE_COLORS[session.state],
@@ -145,9 +158,9 @@ export class SessionButton extends ManagedAction {
           // "which agent am I approving?" is a real question.
           active: session.id === activeId,
         });
-      } else if (pin) {
-        // Pinned but idle: keep the slot's identity rather than going blank.
-        image = keyImage({ bg: EMPTY_PIN_BG, lines: [{ text: basename(pin) || pin, dim: true }] });
+      } else if (pin || label) {
+        // Pinned or labelled but idle: keep the slot's identity rather than going blank.
+        image = keyImage({ bg: EMPTY_PIN_BG, lines: [{ text: label || basename(pin!) || pin!, dim: true }] });
       } else {
         image = keyImage({ bg: STATE_COLORS[State.DISCONNECTED], lines: [{ text: "—", dim: true }] });
       }

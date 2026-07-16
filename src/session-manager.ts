@@ -206,7 +206,7 @@ export class SessionManager extends EventEmitter {
       session.state = nextState;
     }
 
-    streamDeck.logger.info(`Event: ${event} session=${id} prev=${prevState} next=${session.state} hasPending=${!!session.pendingPermission} pid=${session.pid}`);
+    streamDeck.logger.info(`Event: ${event} session=${id} cwd=${session.cwd} prev=${prevState} next=${session.state} hasPending=${!!session.pendingPermission} pid=${session.pid}`);
 
     // If we left AWAITING_PERMISSION via a non-resolution path (e.g. user approved
     // in terminal), clean up the stale pending permission and its timeout.
