@@ -1,0 +1,22 @@
+# Line endings are a property of this project, not of whoever cloned it.
+#
+# Without this, correctness depends on each contributor's global core.autocrlf.
+# That matters more here than in most repos: yolodeck is a fork of a macOS project
+# (agentsd) and the README tells you to `git diff upstream/main` to see what changed.
+# Line-ending drift turns that diff into thousands of phantom changed lines and makes
+# the comparison useless. Upstream's CI also runs on Linux, macOS, and Windows.
+#
+# text=auto  — normalize to LF in the repository, always
+# eol=lf     — and check out as LF everywhere, including Windows
+#
+# All current tooling here (VS Code, PowerShell 7, Node, Git Bash) reads LF fine.
+* text=auto eol=lf
+
+# Binaries must never be touched. Git's heuristics usually get this right; being
+# explicit means a corrupted plugin icon can't be one bad autodetect away.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.streamDeckPlugin binary
