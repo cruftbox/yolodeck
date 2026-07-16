@@ -163,8 +163,11 @@ export class SessionButton extends ManagedAction {
 
       let image: string;
       if (session) {
-        // A label wins over the auto name, which is volatile (see SessionSlotSettings).
-        const lines: KeyLine[] = [{ text: label || basename(session.cwd) || session.cwd, bold: true }];
+        // Name priority: manual label > session title (customTitle) > cwd basename.
+        // The title is the real distinguisher — basename(cwd) shows "micha" for every
+        // session started from the home dir. See readTranscriptMeta.
+        const name = label || session.title || basename(session.cwd) || session.cwd;
+        const lines: KeyLine[] = [{ text: name, bold: true }];
         if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
         image = keyImage({
           bg: STATE_COLORS[session.state],

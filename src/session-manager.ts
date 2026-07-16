@@ -3,7 +3,7 @@ import streamDeck from "@elgato/streamdeck";
 import { transition } from "./state-machine";
 import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState, StatusLinePayload, UsageMetrics } from "./types";
 import { State } from "./types";
-import { extractModel } from "./util/transcript";
+import { readTranscriptMeta } from "./util/transcript";
 
 /**
  * Canonicalise a Windows path for comparison: case-insensitive, separator-agnostic,
@@ -178,22 +178,23 @@ export class SessionManager extends EventEmitter {
         activeWork: 0,
         lastError: null,
         model: payload.model ?? null,
+        title: null,
         pendingPermission: null,
         pid: null,
         lastActivity: Date.now(),
       };
       this.sessions.set(id, session);
 
-      // Backfill model from transcript if not in payload
-      if (!session.model && payload.transcript_path) {
-        extractModel(payload.transcript_path).then((model) => {
-          const s = this.sessions.get(id);
-          if (model && s && !s.model) {
-            s.model = model;
-            this.emit("sessionUpdated", s, event);
-          }
-        });
+      // Backfill model AND title from the transcript. The title (customTitle) is the
+      // reliable per-session name — basename(cwd) collapses every home-dir session to
+      // "micha". Read once on first sight; re-read below when the title is still unknown.
+      if (payload.transcript_path) {
+        this.backfillFromTranscript(id, payload.transcript_path, event);
       }
+    } else if (!session.title && payload.transcript_path) {
+      // Title may not have been written to the transcript yet when the session first
+      // appeared (it's set once the conversation is named). Keep trying until we get it.
+      this.backfillFromTranscript(id, payload.transcript_path, event);
     }
 
     session.lastActivity = Date.now();
@@ -278,6 +279,23 @@ export class SessionManager extends EventEmitter {
 
     this.emit("sessionUpdated", session, event);
     return session;
+  }
+
+  /**
+   * Pull model + title from the transcript and apply anything still missing.
+   * Fire-and-forget; emits sessionUpdated so the key re-renders when the title lands.
+   */
+  private backfillFromTranscript(id: string, transcriptPath: string, event: HookEventName): void {
+    readTranscriptMeta(transcriptPath)
+      .then(({ model, title }) => {
+        const s = this.sessions.get(id);
+        if (!s) return;
+        let changed = false;
+        if (model && !s.model) { s.model = model; changed = true; }
+        if (title && s.title !== title) { s.title = title; changed = true; }
+        if (changed) this.emit("sessionUpdated", s, event);
+      })
+      .catch(() => { /* transcript unreadable; fall back to cwd basename */ });
   }
 
   /** Store the resolved PID for a session. Resolved once per session — see HookServer.resolveCallerPid. */

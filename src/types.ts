@@ -120,6 +120,8 @@ export interface SessionState {
   activeWork: number;
   lastError: string | null;
   model: string | null;
+  /** Human session title from the transcript (`customTitle`), the reliable name. */
+  title: string | null;
   pendingPermission: PendingPermission | null;
   /** PID of the Claude Code process, resolved from hook connection. */
   pid: number | null;
