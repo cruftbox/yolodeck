@@ -1,65 +1,44 @@
 import streamDeck, { action } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { State } from "../types";
-import { INERT_BG, keyImage, type KeyLine } from "../util/svg";
+import { TOKENS, renderKey, type KeyLine } from "../util/svg";
+import { animate, breathe, pulse, still } from "../util/motion";
 
 /**
- * Colour by *state*, matching the session key's palette.
- *
- * Previously this coloured by subagent count, so a single session that was Working with
- * no subagents rendered grey — identical to Idle. The state you most want at a glance
- * had no colour. State is the signal; the subagent count is a detail line.
+ * The heartbeat — the single most-glanced key. Color is the primary read; motion
+ * follows the spec's rule (breathe = working, pulse = needs you, steady otherwise).
  */
-const STATE_COLORS: Record<State, string> = {
-  [State.DISCONNECTED]: INERT_BG,
-  [State.IDLE]: "#1a7f37", // green — connected, your turn
-  [State.PROCESSING]: "#1f6feb", // blue — working
-  [State.AWAITING_PERMISSION]: "#d29922", // gold — needs you
-  [State.AWAITING_ELICITATION]: "#8957e5", // purple — asking a question
-};
-
 @action({ UUID: "com.cruftbox.yolodeck.status" })
 export class StatusButton extends ManagedAction {
   protected render(): void {
-    const session = this.manager?.activeSession;
+    const s = this.manager?.activeSession;
+    let token = TOKENS.idle;
+    let lines: KeyLine[] = [{ text: "No session", dim: true }];
+    let motion: "breathe" | "pulse" | null = null;
 
-    let bg: string;
-    let lines: KeyLine[];
-
-    if (!session) {
-      bg = INERT_BG;
-      lines = [{ text: "No session", dim: true }];
-    } else {
-      const isError = session.state === State.IDLE && !!session.lastError;
-      bg = isError ? "#da3633" : STATE_COLORS[session.state];
-      lines = [];
-
-      switch (session.state) {
+    if (s) {
+      const isError = s.state === State.IDLE && !!s.lastError;
+      switch (s.state) {
         case State.PROCESSING:
-          lines.push({ text: "Working", bold: true });
-          if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
+          token = TOKENS.working; motion = "breathe";
+          lines = [{ text: "Working" }, ...(s.currentTool ? [{ text: s.currentTool, dim: true }] : [])];
           break;
         case State.AWAITING_PERMISSION:
-          lines.push({ text: "Permission?", bold: true });
+          token = TOKENS.awaiting; motion = "pulse"; lines = [{ text: "Waiting" }];
           break;
         case State.AWAITING_ELICITATION:
-          lines.push({ text: "Question?", bold: true });
-          break;
-        case State.IDLE:
-          lines.push({ text: isError ? "Error" : "Idle", bold: true });
+          token = TOKENS.permission; motion = "pulse"; lines = [{ text: "Question" }];
           break;
         default:
-          lines.push({ text: session.state, bold: true });
+          token = isError ? TOKENS.deny : TOKENS.idle;
+          lines = [{ text: isError ? "Error" : "Idle" }];
       }
-
-      if (session.activeWork > 0) {
-        lines.push({ text: `${session.activeWork} agent${session.activeWork > 1 ? "s" : ""}`, dim: true });
-      }
+      if (s.activeWork > 0) lines.push({ text: `${s.activeWork} agent${s.activeWork > 1 ? "s" : ""}`, dim: true });
     }
 
-    const image = keyImage({ bg, lines });
-    for (const act of this.actions) {
-      act.setImage(image).catch((err) => streamDeck.logger.debug(`setImage failed: ${err}`));
-    }
+    if (motion) animate(this, () => this.render()); else still(this);
+    const brightness = motion === "breathe" ? breathe() : motion === "pulse" ? pulse() : 1;
+    const image = renderKey({ token, lines, brightness });
+    for (const act of this.actions) act.setImage(image).catch((e) => streamDeck.logger.debug(`${e}`));
   }
 }

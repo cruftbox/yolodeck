@@ -3,6 +3,7 @@ import streamDeck from "@elgato/streamdeck";
 import { HookServer } from "./hook-server";
 import { SessionManager } from "./session-manager";
 import { setManager } from "./actions/base";
+import { fontAvailable } from "./util/text";
 
 import { AlwaysAllowButton } from "./actions/always-allow-button";
 import { ApproveButton } from "./actions/approve-button";
@@ -47,6 +48,10 @@ streamDeck.actions.registerAction(new FocusButton());
 streamDeck.actions.registerAction(new UsageButton());
 
 streamDeck.logger.setLevel("info");
+
+// Confirm the bundled Inter font loaded (text renders as vector paths from it; if it
+// didn't load, renderKey falls back to a system font-family <text>).
+streamDeck.logger.info(`Inter font loaded: ${fontAvailable()}`);
 
 // Start hook server
 hookServer.start().then(() => {

@@ -1,25 +1,27 @@
-import { action, type KeyDownEvent } from "@elgato/streamdeck";
+import streamDeck, { action, type KeyDownEvent } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { State } from "../types";
-import { GLYPH, INERT_BG, keyImage } from "../util/svg";
+import { GLYPH, TOKENS, renderKey } from "../util/svg";
+import { dim } from "../util/tokens";
+import { animate, pulse, still } from "../util/motion";
 
 @action({ UUID: "com.cruftbox.yolodeck.approve" })
 export class ApproveButton extends ManagedAction {
   override onKeyDown(_ev: KeyDownEvent): void {
-    const session = this.manager?.activeSession;
-    if (!session || session.state !== State.AWAITING_PERMISSION) return;
-    this.manager.resolvePermission(session.id, true);
+    const s = this.manager?.activeSession;
+    if (s?.state === State.AWAITING_PERMISSION) this.manager?.resolvePermission(s.id, true);
   }
 
   protected render(): void {
-    // Dark and inert unless something is actually pending — a live approve key is
-    // exactly how you approve a command you never read.
+    // Lit + pulsing only when there's a request to answer; dim and steady otherwise.
     const live = this.manager?.activeSession?.state === State.AWAITING_PERMISSION;
-    const image = keyImage({
-      bg: live ? "#1a7f37" : INERT_BG,
+    if (live) animate(this, () => this.render()); else still(this);
+    const image = renderKey({
+      token: live ? TOKENS.approve : dim(TOKENS.approve),
       glyph: GLYPH.check,
-      lines: [{ text: "Approve", bold: true }],
+      lines: [{ text: "Approve" }],
+      brightness: live ? pulse() : 1,
     });
-    for (const act of this.actions) act.setImage(image);
+    for (const act of this.actions) act.setImage(image).catch((e) => streamDeck.logger.debug(`${e}`));
   }
 }

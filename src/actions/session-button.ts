@@ -12,18 +12,17 @@ import { ManagedAction } from "./base";
 import { normalizePath } from "../session-manager";
 import { focusWindowForPid } from "../util/windows";
 import { State, type SessionState } from "../types";
-import { keyImage, type KeyLine } from "../util/svg";
+import { TOKENS, renderKey, type KeyLine } from "../util/svg";
+import { type Token } from "../util/tokens";
 
-const STATE_COLORS: Record<State, string> = {
-  [State.DISCONNECTED]: "#333333",
-  [State.IDLE]: "#1a7f37",
-  [State.PROCESSING]: "#1f6feb",
-  [State.AWAITING_PERMISSION]: "#d29922",
-  [State.AWAITING_ELICITATION]: "#8957e5",
+
+const STATE_TOKENS: Record<State, Token> = {
+  [State.DISCONNECTED]: TOKENS.idle,
+  [State.IDLE]: TOKENS.idle,
+  [State.PROCESSING]: TOKENS.working,
+  [State.AWAITING_PERMISSION]: TOKENS.awaiting,
+  [State.AWAITING_ELICITATION]: TOKENS.permission,
 };
-
-/** An empty pinned slot: project name shown dimmed, so the key keeps its identity. */
-const EMPTY_PIN_BG = "#26292e";
 
 export type SessionSlotSettings = {
   /** Project directory this key claims, e.g. "C:\\Code\\orbis". Empty means overflow. */
@@ -167,20 +166,21 @@ export class SessionButton extends ManagedAction {
         // The title is the real distinguisher — basename(cwd) shows "micha" for every
         // session started from the home dir. See readTranscriptMeta.
         const name = label || session.title || basename(session.cwd) || session.cwd;
-        const lines: KeyLine[] = [{ text: name, bold: true }];
+        const lines: KeyLine[] = [{ text: name }];
         if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
-        image = keyImage({
-          bg: STATE_COLORS[session.state],
+        // Session keys stay steady — the status key carries motion, so five sessions
+        // don't all breathe at once (§ "one attention motion at a time"). State reads
+        // from color; the dot marks which session approve/deny will act on.
+        image = renderKey({
+          token: STATE_TOKENS[session.state],
           lines,
-          // Marks which session approve/deny acts on. Implicit with one key; with five,
-          // "which agent am I approving?" is a real question.
-          active: session.id === activeId,
+          mark: session.id === activeId,
         });
       } else if (pin || label) {
         // Pinned or labelled but idle: keep the slot's identity rather than going blank.
-        image = keyImage({ bg: EMPTY_PIN_BG, lines: [{ text: label || basename(pin!) || pin!, dim: true }] });
+        image = renderKey({ token: TOKENS.idle, brightness: 0.7, lines: [{ text: label || basename(pin!) || pin!, dim: true }] });
       } else {
-        image = keyImage({ bg: STATE_COLORS[State.DISCONNECTED], lines: [{ text: "—", dim: true }] });
+        image = renderKey({ token: TOKENS.empty });
       }
 
       key.setImage(image).catch((err) => streamDeck.logger.debug(`setImage failed: ${err}`));

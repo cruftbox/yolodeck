@@ -27,7 +27,8 @@
   "author": "Michael Pusateri",
   "license": "MIT",
   "dependencies": {
-    "@elgato/streamdeck": "^2.0.4"
+    "@elgato/streamdeck": "^2.0.4",
+    "opentype.js": "^2.0.0"
   },
   "devDependencies": {
     "@elgato/cli": "^1.7.3",
