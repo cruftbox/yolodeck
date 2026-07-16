@@ -19,5 +19,8 @@
 *.jpeg binary
 *.gif binary
 *.ico binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
 *.streamDeckPlugin binary
 *.streamDeckProfile binary
