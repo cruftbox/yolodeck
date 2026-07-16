@@ -10,17 +10,11 @@ Everyone calls `--dangerously-skip-permissions` "YOLO mode." yolodeck is the ant
 
 ## Credit
 
-**yolodeck is derived from [agentsd](https://github.com/paultyng/agentsd) by Paul Tyng (MIT).** This is not a light inspiration — the hook server, session manager, state machine, and most actions started as his code, and its git history is preserved in this repo. agentsd is macOS-only; yolodeck ports it to Windows and takes it in a different direction.
+**yolodeck is derived from [agentsd](https://github.com/paultyng/agentsd) by Paul Tyng (MIT).** This is not a light inspiration — the hook server, session manager, state machine, and most actions started as his code, and its git history is preserved in this repo. agentsd is macOS-only; yolodeck ports it to Windows and has since diverged well past a portable delta (pinned session slots, profile switching, the usage key, per-key custom labels, and more have no agentsd equivalent).
 
 If you're on a Mac, **use agentsd** — it's the original and it's better maintained.
 
-Upstream is kept as a git remote, so you can see exactly what changed:
-
-```sh
-git remote add upstream https://github.com/paultyng/agentsd.git
-git fetch upstream
-git diff upstream/main
-```
+There's no `upstream` git remote here. One was kept briefly early on for `git diff upstream/main`, but a remote literally named `upstream` makes `gh` silently prefer it over `origin` for repo resolution (a fork-workflow heuristic) — every `gh` command in this repo was quietly operating on `paultyng/agentsd` instead of `cruftbox/yolodeck` until that was noticed and removed. If you want the historical diff, clone agentsd separately rather than adding it as a remote here.
 
 ## How it works
 
