@@ -351,14 +351,15 @@ recommended. Reaching them took ~5 changes to working code instead of three week
 
 ### Stage 4 — Polish
 
-**Next up:** a dedicated `model` key. The mode key currently carries two unrelated
-facts — permission mode and model — and the model line is unreadable at the size that
-leaves. Two facts on one 72px key is one too many; splitting them lets each be legible.
-Mode keeps the shield and goes back to one line; `model` gets its own key rendering
-`Opus 4.8` large, sourced from the session's `model` field (already tracked, already
-backfilled from the transcript when the payload omits it).
+- ✅ **Dedicated `model` key DONE 2026-07-16.** The mode key was carrying two unrelated
+  facts — permission mode and model — and the model line auto-shrank to unreadable to
+  fit both. Split: mode keeps the shield and one line; `model` renders `Opus 4.8` large
+  on its own key (name big, version dimmed under it). shortenModel moved to util/model.ts
+  (testable without the SDK decorator) and now handles one-number ids (`Sonnet 5`) and
+  trailing dates (`claude-haiku-4-5-20251001` → `Haiku 4.5`), not just two-number ones.
+  Placed at 1,2 in the bundled profile.
 
-Then the slow breathe on the mode key when permissions are bypassed. The purple
+**Next up:** the slow breathe on the mode key when permissions are bypassed. The purple
 unguarded colouring already landed; the breathe is a timer pushing frames to setImage.
 
 - ✅ **Key rendering rebuilt 2026-07-15.** The plugin was running two rendering systems

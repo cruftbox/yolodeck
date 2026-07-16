@@ -1,4 +1,4 @@
-import { action } from "@elgato/streamdeck";
+import streamDeck, { action } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { GLYPH, INERT_BG, keyImage } from "../util/svg";
 
@@ -18,16 +18,10 @@ const MODE_LABELS: Record<string, string> = {
  */
 const UNGUARDED = new Set(["bypassPermissions", "dontAsk", "auto"]);
 
-/** Shorten a model id for a 72px key, e.g. "claude-sonnet-4-6" -> "Sonnet 4.6" */
-function shortenModel(model: string): string {
-  const m = model.match(/claude-(\w+)-(\d+)-(\d+)/);
-  if (m) {
-    const name = m[1].charAt(0).toUpperCase() + m[1].slice(1);
-    return `${name} ${m[2]}.${m[3]}`;
-  }
-  return model.replace(/^claude-/, "").slice(0, 12);
-}
-
+/**
+ * Permission mode only. The model moved to its own key (ModelButton) — two unrelated
+ * facts on one 72px key made both unreadable.
+ */
 @action({ UUID: "com.cruftbox.yolodeck.mode" })
 export class ModeButton extends ManagedAction {
   protected render(): void {
@@ -39,11 +33,10 @@ export class ModeButton extends ManagedAction {
     const image = keyImage({
       bg: unguarded ? "#8957e5" : INERT_BG,
       glyph: GLYPH.shield,
-      lines: [
-        { text: label || "—", bold: true },
-        ...(session?.model ? [{ text: shortenModel(session.model), dim: true }] : []),
-      ],
+      lines: [{ text: label || "—", bold: true }],
     });
-    for (const act of this.actions) act.setImage(image);
+    for (const act of this.actions) {
+      act.setImage(image).catch((err) => streamDeck.logger.debug(`setImage failed: ${err}`));
+    }
   }
 }
