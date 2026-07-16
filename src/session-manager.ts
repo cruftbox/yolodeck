@@ -331,8 +331,16 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session?.pendingPermission) return false;
 
-    const { res, timer } = session.pendingPermission;
+    const { res, timer, toolName } = session.pendingPermission;
     clearTimeout(timer);
+
+    // NOT IN UPSTREAM. A deck press is the single most important thing that happens
+    // here and it left no trace in the log — which meant the only way to tell a button
+    // press from an in-app approval was inferring it from `hasPending` on the *next*
+    // event. Log the thing itself.
+    streamDeck.logger.info(
+      `Resolved from Stream Deck: ${allow ? "APPROVE" : "DENY"} session=${sessionId} tool=${toolName ?? "?"}`,
+    );
 
     if (!res.writableEnded) {
       const body = allow
