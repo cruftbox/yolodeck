@@ -46,6 +46,12 @@ export interface KeyImageOptions {
   glyph?: string;
   lines?: KeyLine[];
   fg?: string;
+  /**
+   * Draw a selection ring. Used by session keys to show which session approve/deny
+   * will act on — with one key that was implicit, with five it's a real question, and
+   * approving the wrong agent is the failure this prevents.
+   */
+  active?: boolean;
 }
 
 /**
@@ -58,7 +64,7 @@ export interface KeyImageOptions {
  * other — visible on hardware as "Approve" sitting across the tick. Manifest states
  * now set ShowTitle:false, and nothing calls setTitle().
  */
-export function keyImage({ bg, glyph, lines = [], fg = "#ffffff" }: KeyImageOptions): string {
+export function keyImage({ bg, glyph, lines = [], fg = "#ffffff", active = false }: KeyImageOptions): string {
   const parts: string[] = [`<rect width="${SIZE}" height="${SIZE}" rx="16" fill="${escapeXml(bg)}"/>`];
   const hasText = lines.length > 0;
 
@@ -95,6 +101,14 @@ export function keyImage({ bg, glyph, lines = [], fg = "#ffffff" }: KeyImageOpti
       );
       y += lineHeight;
     }
+  }
+
+  if (active) {
+    // Inset so the stroke sits inside the rounded corner rather than straddling it.
+    parts.push(
+      `<rect x="3" y="3" width="${SIZE - 6}" height="${SIZE - 6}" rx="14" ` +
+      `fill="none" stroke="#ffffff" stroke-width="6" opacity="0.9"/>`,
+    );
   }
 
   return svgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}">${parts.join("")}</svg>`);

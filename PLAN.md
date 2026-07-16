@@ -98,10 +98,19 @@ Rules that matter:
 - **Roll up subagents.** Payloads carry `agent_id` / `agent_type` when the event
   comes from inside a subagent. Slot by parent session and show a count, or one
   `/code-review` fills the deck with Explore agents.
-- **Slot assignment: pinned + overflow.** A key configured with `C:\Code\orbis`
-  claims any session whose `cwd` matches, so orbis is always key 3. Unpinned keys
-  are a first-come pool for ad-hoc sessions. `cwd` is stable and human-meaningful;
-  `session_id` is neither.
+- **Slot assignment: pinned + overflow.** ✅ **DONE 2026-07-15.** A key configured
+  with `C:\Code\orbis` claims any session whose `cwd` matches, so orbis is always the
+  same key. Unpinned keys are a first-come pool ordered by deck position (coordinates
+  are the only stable ordering available — otherwise two overflow keys both claim
+  session #1). `cwd` is stable and human-meaningful; `session_id` is neither.
+  Configured via a self-contained property inspector at `ui/session.html`, which lists
+  live session directories so pinning is a click rather than typing a path.
+
+  This required abandoning upstream's model: agentsd has one "active session" and every
+  Session key renders it, so five keys were five identical keys and you pressed to
+  cycle. Each key now resolves its own session, and pressing one *targets* it for
+  approve/deny. The targeted key carries a white ring — with one key that was implicit,
+  with five "which agent am I approving?" is a real question.
 
 ## Profile switching
 

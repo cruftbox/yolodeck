@@ -5,6 +5,16 @@ import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, Se
 import { State } from "./types";
 import { extractModel } from "./util/transcript";
 
+/**
+ * Canonicalise a Windows path for comparison: case-insensitive, separator-agnostic,
+ * and trailing-separator-agnostic. `C:\Code\Orbis\` and `c:/code/orbis` are the same
+ * directory and a pinned key must match a session started from either.
+ */
+export function normalizePath(p: string | null | undefined): string {
+  if (!p) return "";
+  return p.replace(/[\\/]+/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
 /** Prune idle/disconnected sessions with no activity for 1 minute. */
 const STALE_MS = 60 * 1000;
 const STALE_PRUNE_STATES = new Set([State.IDLE, State.DISCONNECTED]);
@@ -51,6 +61,29 @@ export class SessionManager extends EventEmitter {
 
   get sessionCount(): number {
     return this.sessions.size;
+  }
+
+  /** Live sessions in arrival order. Map preserves insertion order, so this is stable. */
+  getSessions(): SessionState[] {
+    return [...this.sessions.values()];
+  }
+
+  get activeSessionId(): string | undefined {
+    return this.activeSession?.id;
+  }
+
+  /**
+   * Find the session running in `dir`.
+   *
+   * Backs pinned slots: a key configured with C:\Code\orbis claims orbis's session
+   * wherever it lands, so a given project is always the same physical key. Without
+   * this every session shows `basename(cwd)` and anything launched from the home
+   * directory renders as an indistinguishable "micha".
+   */
+  findByCwd(dir: string): SessionState | undefined {
+    const target = normalizePath(dir);
+    if (!target) return undefined;
+    return this.getSessions().find((s) => normalizePath(s.cwd) === target);
   }
 
   /**

@@ -1,7 +1,16 @@
-import { action, type KeyDownEvent } from "@elgato/streamdeck";
+import streamDeck, {
+  action,
+  type DidReceiveSettingsEvent,
+  type KeyAction,
+  type KeyDownEvent,
+  type PropertyInspectorDidAppearEvent,
+  type SendToPluginEvent,
+  type WillAppearEvent,
+} from "@elgato/streamdeck";
 import { basename } from "node:path";
 import { ManagedAction } from "./base";
-import { State } from "../types";
+import { normalizePath } from "../session-manager";
+import { State, type SessionState } from "../types";
 import { keyImage, type KeyLine } from "../util/svg";
 
 const STATE_COLORS: Record<State, string> = {
@@ -12,23 +21,138 @@ const STATE_COLORS: Record<State, string> = {
   [State.AWAITING_ELICITATION]: "#8957e5",
 };
 
+/** An empty pinned slot: project name shown dimmed, so the key keeps its identity. */
+const EMPTY_PIN_BG = "#26292e";
+
+export type SessionSlotSettings = {
+  /** Project directory this key claims, e.g. "C:\\Code\\orbis". Empty means overflow. */
+  pin?: string;
+};
+
+/**
+ * One key, one session.
+ *
+ * DIVERGES FROM UPSTREAM. agentsd has a single notion of "the active session" and every
+ * Session key renders it — place five keys and you get five identical keys, pressing to
+ * cycle. That works at one or two sessions and collapses at five. It also means every
+ * session started from the home directory renders as an indistinguishable `micha`.
+ *
+ * Here each key resolves its *own* session:
+ *
+ *   - **Pinned** (`pin` set to a project path): claims that project's session wherever
+ *     it lands, so orbis is always the same physical key. Renders dim with the project
+ *     name when nothing is running there, so the slot keeps its identity.
+ *   - **Overflow** (no `pin`): claims unpinned sessions first-come, ordered by the key's
+ *     own position on the deck. Coordinates are the only stable ordering available —
+ *     without it two overflow keys would both claim session #1.
+ *
+ * Pressing a key targets that session for approve/deny rather than cycling.
+ */
 @action({ UUID: "com.cruftbox.yolodeck.session" })
 export class SessionButton extends ManagedAction {
-  override onKeyDown(_ev: KeyDownEvent): void {
-    this.manager?.cycleSession(1);
+  /**
+   * Per-instance settings, keyed by action id.
+   *
+   * render() is synchronous and getSettings() is not, so settings are cached as they
+   * arrive via WillAppear/DidReceiveSettings rather than fetched during a render.
+   */
+  private readonly settings = new Map<string, SessionSlotSettings>();
+
+  override onWillAppear(ev: WillAppearEvent): void {
+    this.settings.set(ev.action.id, (ev.payload.settings ?? {}) as SessionSlotSettings);
+    super.onWillAppear(ev);
+  }
+
+  override onDidReceiveSettings(ev: DidReceiveSettingsEvent): void {
+    this.settings.set(ev.action.id, (ev.payload.settings ?? {}) as SessionSlotSettings);
+    this.render();
+  }
+
+  /** Offer the Property Inspector the directories we actually know about. */
+  override onPropertyInspectorDidAppear(_ev: PropertyInspectorDidAppearEvent): void {
+    this.sendKnownCwds();
+  }
+
+  override onSendToPlugin(ev: SendToPluginEvent<{ event?: string }, SessionSlotSettings>): void {
+    if (ev.payload?.event === "getSessions") this.sendKnownCwds();
+  }
+
+  /**
+   * Push the live session directories to the inspector so pinning is a click rather
+   * than typing a path from memory. `streamDeck.ui` targets whichever inspector is
+   * currently open, which is the only one that can be — Stream Deck shows one at a time.
+   */
+  private sendKnownCwds(): void {
+    const cwds = [...new Set(this.manager?.getSessions().map((s) => s.cwd) ?? [])];
+    streamDeck.ui.sendToPropertyInspector({ event: "sessions", cwds }).catch(() => {
+      /* inspector closed between request and reply */
+    });
+  }
+
+  override onKeyDown(ev: KeyDownEvent): void {
+    const session = this.resolve(ev.action as KeyAction);
+    // Target this session for approve/deny. Upstream cycled the active session here,
+    // which stops making sense once each key owns one.
+    if (session) this.manager?.focusSession(session.id);
+  }
+
+  /** Which session does a given key show? */
+  private resolve(act: KeyAction): SessionState | undefined {
+    const pin = this.settings.get(act.id)?.pin?.trim();
+    if (pin) return this.manager?.findByCwd(pin);
+
+    // Overflow: sessions no pinned key has claimed, handed out by deck position.
+    const pinned = new Set(
+      [...this.settings.values()].map((s) => normalizePath(s.pin?.trim())).filter(Boolean),
+    );
+    const unclaimed = (this.manager?.getSessions() ?? []).filter(
+      (s) => !pinned.has(normalizePath(s.cwd)),
+    );
+
+    const index = this.overflowKeys().findIndex((k) => k.id === act.id);
+    return index >= 0 ? unclaimed[index] : undefined;
+  }
+
+  /** Unpinned keys in deck order, top-left first. Stable, unlike iteration order. */
+  private overflowKeys(): KeyAction[] {
+    return [...this.actions]
+      .filter((a): a is KeyAction => "coordinates" in a && !this.settings.get(a.id)?.pin?.trim())
+      .sort((a, b) => {
+        const ac = a.coordinates;
+        const bc = b.coordinates;
+        if (!ac || !bc) return 0; // multi-action members have no coordinates
+        return ac.row - bc.row || ac.column - bc.column;
+      });
   }
 
   protected render(): void {
-    const session = this.manager?.activeSession;
-    const color = session ? STATE_COLORS[session.state] : STATE_COLORS[State.DISCONNECTED];
-    const count = this.manager?.sessionCount ?? 0;
+    const activeId = this.manager?.activeSessionId;
 
-    const lines: KeyLine[] = [{ text: session ? basename(session.cwd) : "No Session", bold: true }];
-    if (count > 1) {
-      lines.push({ text: `${(this.manager?.activeIndex ?? 0) + 1}/${count}`, dim: true });
+    for (const act of this.actions) {
+      if (!("coordinates" in act)) continue;
+      const key = act as KeyAction;
+      const session = this.resolve(key);
+      const pin = this.settings.get(key.id)?.pin?.trim();
+
+      let image: string;
+      if (session) {
+        const lines: KeyLine[] = [{ text: basename(session.cwd) || session.cwd, bold: true }];
+        if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
+        image = keyImage({
+          bg: STATE_COLORS[session.state],
+          lines,
+          // Marks which session approve/deny acts on. Implicit with one key; with five,
+          // "which agent am I approving?" is a real question.
+          active: session.id === activeId,
+        });
+      } else if (pin) {
+        // Pinned but idle: keep the slot's identity rather than going blank.
+        image = keyImage({ bg: EMPTY_PIN_BG, lines: [{ text: basename(pin) || pin, dim: true }] });
+      } else {
+        image = keyImage({ bg: STATE_COLORS[State.DISCONNECTED], lines: [{ text: "—", dim: true }] });
+      }
+
+      key.setImage(image).catch((err) => streamDeck.logger.debug(`setImage failed: ${err}`));
     }
-
-    const image = keyImage({ bg: color, lines });
-    for (const act of this.actions) act.setImage(image);
   }
 }

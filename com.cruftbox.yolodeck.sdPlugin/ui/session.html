@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>yolodeck — session slot</title>
+  <style>
+    /* Self-contained: no CDN. Elgato's sdpi-components is convenient but pulls from
+       the network, and a property inspector that needs internet to configure a
+       localhost plugin is a bad trade. */
+    body {
+      margin: 0; padding: 10px 12px;
+      font: 9pt/1.4 "Segoe UI", system-ui, sans-serif;
+      color: #d8d8d8; background: #2d2d2d;
+    }
+    label { display: block; margin-bottom: 4px; color: #969696; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 5px 6px;
+      background: #3d3d3d; color: #d8d8d8;
+      border: 1px solid #4d4d4d; border-radius: 3px; font: inherit;
+    }
+    input:focus { outline: none; border-color: #77f; }
+    .hint { margin-top: 8px; color: #7a7a7a; font-size: 8pt; }
+    .live { margin-top: 10px; }
+    .live-title { color: #969696; margin-bottom: 5px; }
+    button.cwd {
+      display: block; width: 100%; text-align: left; margin-bottom: 3px;
+      padding: 4px 6px; background: #3d3d3d; color: #d8d8d8;
+      border: 1px solid #4d4d4d; border-radius: 3px; font: inherit; cursor: pointer;
+    }
+    button.cwd:hover { background: #4a4a4a; border-color: #77f; }
+    .none { color: #6a6a6a; font-style: italic; }
+  </style>
+</head>
+<body>
+  <label for="pin">Pin to project directory</label>
+  <input id="pin" type="text" placeholder="C:\Code\orbis — leave empty for overflow" spellcheck="false" />
+
+  <div class="hint">
+    Pinned: this key always shows that project, dimmed when nothing's running there.<br />
+    Empty: the key claims any unpinned session, ordered by its position on the deck.
+  </div>
+
+  <div class="live">
+    <div class="live-title">Running now — click to pin</div>
+    <div id="sessions"><span class="none">no sessions detected</span></div>
+  </div>
+
+  <script>
+    let ws, uuid;
+    const pin = document.getElementById("pin");
+    const list = document.getElementById("sessions");
+    let settings = {};
+
+    function save() {
+      send({ event: "setSettings", context: uuid, payload: settings });
+    }
+
+    function send(msg) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    }
+
+    pin.addEventListener("input", () => {
+      settings.pin = pin.value;
+      save();
+    });
+
+    function renderSessions(cwds) {
+      list.innerHTML = "";
+      if (!cwds || !cwds.length) {
+        list.innerHTML = '<span class="none">no sessions detected</span>';
+        return;
+      }
+      for (const cwd of cwds) {
+        const b = document.createElement("button");
+        b.className = "cwd";
+        b.textContent = cwd;
+        b.title = cwd;
+        b.onclick = () => {
+          pin.value = cwd;
+          settings.pin = cwd;
+          save();
+        };
+        list.appendChild(b);
+      }
+    }
+
+    // Stream Deck calls this global to hand us the socket.
+    function connectElgatoStreamDeckSocket(port, inUUID, registerEvent, _info, actionInfo) {
+      uuid = inUUID;
+      ws = new WebSocket("ws://127.0.0.1:" + port);
+
+      ws.onopen = () => {
+        send({ event: registerEvent, uuid: inUUID });
+        try {
+          settings = JSON.parse(actionInfo).payload.settings || {};
+        } catch { settings = {}; }
+        pin.value = settings.pin || "";
+        // Ask the plugin which directories it currently knows about.
+        send({ event: "sendToPlugin", context: uuid, payload: { event: "getSessions" } });
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.event === "sendToPropertyInspector" && msg.payload?.event === "sessions") {
+          renderSessions(msg.payload.cwds);
+        }
+      };
+    }
+  </script>
+</body>
+</html>

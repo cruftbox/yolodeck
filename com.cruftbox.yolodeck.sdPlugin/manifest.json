@@ -5,7 +5,7 @@
       "UUID": "com.cruftbox.yolodeck.session",
       "Name": "Session",
       "Icon": "imgs/session",
-      "Tooltip": "Shows active Claude Code session. Press to cycle.",
+      "Tooltip": "Shows one Claude Code session. Pin it to a project, or leave it as overflow.",
       "Controllers": [
         "Keypad"
       ],
@@ -14,7 +14,8 @@
           "Image": "imgs/session",
           "ShowTitle": false
         }
-      ]
+      ],
+      "PropertyInspectorPath": "ui/session.html"
     },
     {
       "UUID": "com.cruftbox.yolodeck.mode",
