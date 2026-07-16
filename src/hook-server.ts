@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import streamDeck from "@elgato/streamdeck";
 import type { SessionManager } from "./session-manager";
 import { resolvePidForLocalPort } from "./util/windows";
-import type { HookEventName, HookPayload } from "./types";
+import type { HookEventName, HookPayload, StatusLinePayload } from "./types";
 
 const VALID_EVENTS = new Set<HookEventName>([
   "SessionStart", "SessionEnd", "UserPromptSubmit",
@@ -133,6 +133,26 @@ export class HookServer {
     if (req.method !== "POST") {
       res.writeHead(405);
       res.end();
+      return;
+    }
+
+    /**
+     * The statusLine channel, fed by scripts/statusline.mjs.
+     *
+     * Separate from /hooks/* because it is a separate mechanism: hooks carry *events*,
+     * the statusLine carries *metrics* (rate limits, context window, live effort) that
+     * no hook payload includes. It's also `type: "command"` only — there's no http
+     * handler type for statusLine — hence the passthrough script.
+     */
+    if (url.pathname === "/statusline") {
+      try {
+        const payload = (await readJson(req)) as unknown as StatusLinePayload;
+        this.sessionManager.setUsage(payload);
+      } catch {
+        /* a malformed status line must never disturb the terminal */
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end("{}");
       return;
     }
 

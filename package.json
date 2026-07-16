@@ -16,7 +16,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "profile:build": "node scripts/build-profile.mjs"
+    "profile:build": "node scripts/build-profile.mjs",
+    "statusline:install": "node scripts/statusline-config.mjs install",
+    "statusline:uninstall": "node scripts/statusline-config.mjs uninstall"
   },
   "repository": {
     "type": "git",

@@ -121,6 +121,21 @@
           "ShowTitle": false
         }
       ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.usage",
+      "Name": "Usage",
+      "Icon": "imgs/status",
+      "Tooltip": "Rate limit remaining and time to reset. Press to toggle 5-hour / 7-day. Needs the statusLine installed.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
     }
   ],
   "Author": "Michael Pusateri",

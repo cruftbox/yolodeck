@@ -72,6 +72,33 @@ export interface HookPayload {
   permission_suggestions?: PermissionSuggestion[];
 }
 
+/** One rate-limit window as reported by the statusLine JSON. */
+export interface RateLimitWindow {
+  /** 0–100. */
+  used_percentage: number;
+  /** Unix epoch *seconds* when the window resets. */
+  resets_at: number;
+}
+
+/**
+ * Metrics from the statusLine channel.
+ *
+ * Hooks do not carry usage data at all — `claude usage --json` is an open feature
+ * request (anthropics/claude-code#40793), so the statusLine JSON is currently the only
+ * programmatic source for rate limits. It's a separate settings key and a separate
+ * mechanism, and it's `type: "command"` only, hence scripts/statusline.mjs.
+ *
+ * Rate limits are **account-wide**, not per-session: whichever session's statusLine
+ * delivered them, the numbers are the same.
+ */
+export interface UsageMetrics {
+  five_hour?: RateLimitWindow;
+  seven_day?: RateLimitWindow;
+  /** Epoch ms this arrived. statusLine goes quiet when every session is idle, so the
+   *  key needs to know how old its number is rather than show a stale one as current. */
+  receivedAt: number;
+}
+
 export interface PendingPermission {
   req: IncomingMessage;
   res: ServerResponse;
@@ -117,4 +144,19 @@ export interface SessionSnapshot {
   lastActivity: number;
   hasPendingPermission: boolean;
   pendingPermissionToolName: string | null;
+}
+
+/**
+ * The subset of Claude Code's statusLine stdin JSON that we consume.
+ *
+ * The full payload also carries cost, context_window, effort.level, session_id,
+ * transcript_path and model — see scripts/statusline.mjs, which renders some of it
+ * into the terminal on the way past.
+ */
+export interface StatusLinePayload {
+  rate_limits?: {
+    five_hour?: RateLimitWindow;
+    seven_day?: RateLimitWindow;
+  };
+  session_id?: string;
 }

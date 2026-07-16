@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import streamDeck from "@elgato/streamdeck";
 import { transition } from "./state-machine";
-import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState } from "./types";
+import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState, StatusLinePayload, UsageMetrics } from "./types";
 import { State } from "./types";
 import { extractModel } from "./util/transcript";
 
@@ -24,6 +24,8 @@ export class SessionManager extends EventEmitter {
   private readonly sessions = new Map<string, SessionState>();
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
   private _activeIndex = 0;
+  /** Account-wide usage from the statusLine channel; null until it first reports. */
+  private _usage: UsageMetrics | null = null;
   /** Session IDs with pending permissions, ordered by arrival. */
   private permissionQueue: string[] = [];
 
@@ -66,6 +68,28 @@ export class SessionManager extends EventEmitter {
   /** Live sessions in arrival order. Map preserves insertion order, so this is stable. */
   getSessions(): SessionState[] {
     return [...this.sessions.values()];
+  }
+
+  /**
+   * Latest account-wide usage, or null if the statusLine has never reported.
+   *
+   * Not per-session by design: rate limits belong to the account, so it doesn't matter
+   * which session's statusLine delivered them.
+   */
+  get usage(): UsageMetrics | null {
+    return this._usage;
+  }
+
+  /** Called by the statusLine passthrough. Ignores payloads with no rate-limit data. */
+  setUsage(payload: StatusLinePayload): void {
+    const rl = payload.rate_limits;
+    if (!rl?.five_hour && !rl?.seven_day) return;
+    this._usage = {
+      five_hour: rl.five_hour,
+      seven_day: rl.seven_day,
+      receivedAt: Date.now(),
+    };
+    this.emit("usageUpdated", this._usage);
   }
 
   get activeSessionId(): string | undefined {

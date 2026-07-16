@@ -360,11 +360,11 @@ recommended. Reaching them took ~5 changes to working code instead of three week
   glyph scaled and lifted, text below it, font auto-fitted to the key width.
   `ShowTitle: false` on every manifest state; nothing calls `setTitle()`.
 - Pulse (session + status keys)
-- `usage` key + statusLine passthrough (see below)
+- ✅ `usage` key + statusLine passthrough **DONE 2026-07-15** (see below)
 - `effort` key — display from statusLine, set via `UserPromptSubmit`
 - `always-allow` — cheaper than the plan assumed, can move earlier
 
-#### statusLine passthrough
+#### statusLine passthrough ✅ BUILT
 
 Hooks do **not** carry usage data. The only programmatic source for rate limits
 today is the statusLine JSON (`claude usage --json` is an open feature request,
@@ -399,6 +399,17 @@ last-known value with its age instead.
 Note the key shows **account** state, so it doesn't matter which session's
 statusLine delivered it. With no session running, nothing fires and the value
 ages; render that honestly rather than showing a stale number as current.
+
+**Built 2026-07-15.** `scripts/statusline.mjs` + `npm run statusline:install`.
+Measured end to end: 189ms round trip, comfortably inside the 300ms debounce, and the
+printed line is `Opus 4.8 · 8% ctx · 77% left · 2h14m · $1.23`. The installer refuses
+to clobber a statusLine that isn't ours, since that's your terminal display.
+
+The key goes grey past 15 minutes without an update rather than presenting a stale
+number as current. `formatUntil` has three scales — `48m`, `2h14m`, `3d05h` — because
+the two windows differ by two orders of magnitude and "168h00m" on a 72px key is both
+unreadable and useless. That bug only surfaced by rasterising the key and looking at
+it; the tests were happily asserting hours.
 
 ### Stage 5 — Injection (optional, may never happen)
 

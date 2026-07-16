@@ -12,6 +12,7 @@ import { ModeButton } from "./actions/mode-button";
 import { OverviewButton } from "./actions/overview-button";
 import { SessionButton } from "./actions/session-button";
 import { StatusButton } from "./actions/status-button";
+import { UsageButton } from "./actions/usage-button";
 
 // Removed from upstream:
 //   SessionDial — Encoder action; this targets a 15-key MK.2 with no dials.
@@ -41,6 +42,7 @@ streamDeck.actions.registerAction(new ApproveButton());
 streamDeck.actions.registerAction(new AlwaysAllowButton());
 streamDeck.actions.registerAction(new DenyButton());
 streamDeck.actions.registerAction(new FocusButton());
+streamDeck.actions.registerAction(new UsageButton());
 
 streamDeck.logger.setLevel("info");
 
