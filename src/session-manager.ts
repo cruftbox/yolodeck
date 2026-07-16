@@ -15,10 +15,30 @@ export function normalizePath(p: string | null | undefined): string {
   return p.replace(/[\\/]+/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 
-/** Prune idle/disconnected sessions with no activity for 1 minute. */
-const STALE_MS = 60 * 1000;
-const STALE_PRUNE_STATES = new Set([State.IDLE, State.DISCONNECTED]);
-const PRUNE_INTERVAL_MS = 60 * 1000;
+/**
+ * Fallback idle timeout for sessions whose PID never resolved. 10 minutes, not 1.
+ *
+ * The old 60s was catastrophic for the switcher use case: a CLI session sitting at the
+ * prompt waiting for you to type is "idle" and fires no events, so it was pruned a
+ * minute after its last turn — the exact sessions you want on the deck vanished. Once a
+ * PID is known, liveness is checked directly (see pruneStale) and idle time is ignored
+ * entirely; this timeout only covers the brief window before the first PID resolves.
+ */
+const NO_PID_STALE_MS = 10 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 30 * 1000;
+
+/**
+ * Is a process still alive? Signal 0 sends nothing — it just probes existence.
+ * ESRCH = gone; EPERM = alive but not ours (still alive). Works on Windows in Node.
+ */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
 
 export class SessionManager extends EventEmitter {
   private readonly sessions = new Map<string, SessionState>();
@@ -456,22 +476,39 @@ export class SessionManager extends EventEmitter {
     }
   }
 
+  /**
+   * Remove sessions whose Claude Code process is gone.
+   *
+   * Liveness, not idleness, is the pruning signal. A session with a resolved PID stays
+   * on the deck as long as that process exists — however long it sits idle waiting for
+   * input — and is removed the moment the process dies, which also catches hard-kills
+   * that never send SessionEnd. Only sessions whose PID never resolved fall back to a
+   * (generous) idle timeout, and never while PROCESSING or holding a permission.
+   */
   private pruneStale(): void {
     const now = Date.now();
-    // Collect stale IDs first to avoid mutating during iteration
-    const staleIds: string[] = [];
+    const deadIds: string[] = [];
+
     for (const [id, session] of this.sessions) {
-      if (now - session.lastActivity > STALE_MS && STALE_PRUNE_STATES.has(session.state)) {
-        staleIds.push(id);
+      if (session.pid != null) {
+        if (!isProcessAlive(session.pid)) deadIds.push(id);
+        continue; // alive → keep, no matter how long idle
       }
+      // No PID yet: can't probe. Fall back to a long idle timeout, but never reap a
+      // session that's mid-work or waiting on a permission answer.
+      const idle = now - session.lastActivity > NO_PID_STALE_MS;
+      const reapable = session.state === State.IDLE || session.state === State.DISCONNECTED;
+      if (idle && reapable) deadIds.push(id);
     }
-    for (const id of staleIds) {
+
+    for (const id of deadIds) {
       const session = this.sessions.get(id)!;
       this.clearPendingPermission(session);
       this.emit("sessionUpdated", { ...session, state: State.DISCONNECTED }, "SessionEnd");
       this.sessions.delete(id);
+      streamDeck.logger.info(`Pruned session=${id} (process gone or idle without a PID)`);
     }
-    if (staleIds.length > 0) {
+    if (deadIds.length > 0) {
       this.clampActiveIndex();
     }
   }

@@ -327,28 +327,77 @@ describe("SessionManager session cycling and PID", () => {
 
 describe("SessionManager pruning", () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
-  it("prunes IDLE sessions after 60s of inactivity", () => {
+  // The bug this replaces: idle sessions were pruned after 60s, so a CLI session
+  // sitting at the prompt (alive, idle, firing no events) vanished from the deck. Now
+  // liveness — not idleness — decides pruning.
+  it("keeps an idle session on the deck as long as its process is alive", () => {
+    const alive = vi.spyOn(process, "kill").mockReturnValue(true);
     const m = startedManager();
     m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.setSessionPid(SESSION_A, 12345);
+
+    // An hour idle — far past any old timeout — but the process is alive.
+    vi.advanceTimersByTime(60 * 60 * 1000);
+
     expect(m.sessionCount).toBe(1);
+    expect(alive).toHaveBeenCalledWith(12345, 0); // probed liveness with signal 0
+    m.stop();
+  });
 
-    // Advance fake timer past STALE_MS (60s) plus a pruning interval tick (60s).
-    vi.advanceTimersByTime(61_000);
-    // Trigger the prune interval explicitly
-    vi.advanceTimersByTime(60_000);
+  it("prunes a session once its process is gone (catches hard-kills)", () => {
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      const e = new Error("no such process") as NodeJS.ErrnoException;
+      e.code = "ESRCH";
+      throw e;
+    });
+    const m = startedManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.setSessionPid(SESSION_A, 12345);
 
+    vi.advanceTimersByTime(31_000); // one prune tick
     expect(m.sessionCount).toBe(0);
     m.stop();
   });
 
-  it("does NOT prune PROCESSING sessions", () => {
+  it("treats EPERM as alive (process exists, just not ours)", () => {
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      const e = new Error("operation not permitted") as NodeJS.ErrnoException;
+      e.code = "EPERM";
+      throw e;
+    });
+    const m = startedManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.setSessionPid(SESSION_A, 12345);
+
+    vi.advanceTimersByTime(31_000);
+    expect(m.sessionCount).toBe(1);
+    m.stop();
+  });
+
+  it("prunes a PID-less session only after the long fallback idle timeout", () => {
+    const m = startedManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    expect(m.activeSession?.pid).toBeNull();
+
+    vi.advanceTimersByTime(2 * 60 * 1000); // 2 min: past old 60s, under the 10 min fallback
+    expect(m.sessionCount).toBe(1);
+
+    vi.advanceTimersByTime(9 * 60 * 1000); // now past 10 min total
+    expect(m.sessionCount).toBe(0);
+    m.stop();
+  });
+
+  it("does NOT prune a PID-less session while it is PROCESSING", () => {
     const m = startedManager();
     m.handleEvent("SessionStart", { session_id: SESSION_A });
     m.handleEvent("PreToolUse", { session_id: SESSION_A, tool_name: "Bash" });
 
-    vi.advanceTimersByTime(121_000);
+    vi.advanceTimersByTime(20 * 60 * 1000); // well past the fallback
     expect(m.sessionCount).toBe(1);
     expect(m.activeSession?.state).toBe(State.PROCESSING);
     m.stop();
