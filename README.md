@@ -148,7 +148,22 @@ npm run dev          # Stream Deck dev mode
 npm test             # vitest
 npm run typecheck
 npm run debug:hooks  # interactive hook event probe
+npm run profile:build     # regenerate the bundled .streamDeckProfile
+npm run statusline:install / :uninstall
 ```
+
+### Reloading the plugin
+
+**`streamdeck restart` and `streamdeck stop` report success and do nothing.** Both
+print a green tick while the plugin process keeps running with the old bundle — check
+the pid and start time and you'll see it never changed. Kill the process instead; the
+Stream Deck app supervises the plugin and respawns it with the current build:
+
+```powershell
+Get-NetTCPConnection -LocalPort 9200 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+Costs several minutes of confusion if you trust the CLI's output over the pid.
 
 E2E tests use [testagent](https://github.com/paultyng/testagent), a deterministic fake of the Claude Code CLI (no model, no API key). They skip when it isn't on PATH.
 
