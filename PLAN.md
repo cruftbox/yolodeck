@@ -112,7 +112,7 @@ Rules that matter:
   approve/deny. The targeted key carries a white ring — with one key that was implicit,
   with five "which agent am I approving?" is a real question.
 
-## Profile switching
+## Profile switching ✅ DONE 2026-07-15
 
 Constraint from the SDK docs: *"Plugins do not have access to user-defined
 profiles, and therefore cannot switch to them. Plugins can only switch to
@@ -129,6 +129,33 @@ So:
   the plugin API does.
 
 Cost to the existing layout: exactly one key.
+
+**Built 2026-07-15.** The `overview` action is the front-page key: dim when idle,
+blue with a working count, gold when something waits — naming the project when only
+one does, since "orbis is waiting" is actionable in a way "1 waiting" isn't.
+
+The bundled profile is **generated**, not hand-exported (`npm run profile:build`).
+Elgato's documented workflow is to build a layout in the app and export it, which
+produces an opaque blob nobody can review or diff and has to be re-exported by hand
+on every change. `.streamDeckProfile` turns out to be a plain ZIP of JSON:
+
+```
+<UUID>.sdProfile/manifest.json            { Device:{Model,UUID}, Name, Pages, Version }
+<UUID>.sdProfile/Profiles/<PAGE>/manifest.json
+                                          { Controllers:[{ Actions:{ "col,row": {...} } }] }
+```
+
+Format learned from the profiles in `Program Files\Elgato\StreamDeck\DefaultProfiles`
+and the user's own `ProfilesV3`. Two things that only reading real files would tell you:
+
+- **A profile is bound to a device model.** This deck reports `20GAA9902`; Elgato
+  ships one default profile per model for the same reason.
+- **`Switch Profile` with an empty `ProfileUUID` means "the default profile".** So the
+  return trip needs no configuration, and the bundled profile can ship it working.
+
+Do **not** use PowerShell's `Compress-Archive` to build it — it writes backslashes as
+path separators, which the ZIP spec forbids. Use .NET `ZipArchive` with explicit entry
+names.
 
 Do **not** auto-switch profiles on needs-input. It runs into the no-return-path
 constraint and hijacking the deck mid-task gets old immediately. Let the status

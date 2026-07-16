@@ -9,6 +9,7 @@ import { ApproveButton } from "./actions/approve-button";
 import { DenyButton } from "./actions/deny-button";
 import { FocusButton } from "./actions/focus-button";
 import { ModeButton } from "./actions/mode-button";
+import { OverviewButton } from "./actions/overview-button";
 import { SessionButton } from "./actions/session-button";
 import { StatusButton } from "./actions/status-button";
 
@@ -32,6 +33,7 @@ const hookServer = new HookServer(sessionManager);
 setManager(sessionManager);
 
 // Register actions
+streamDeck.actions.registerAction(new OverviewButton());
 streamDeck.actions.registerAction(new SessionButton());
 streamDeck.actions.registerAction(new ModeButton());
 streamDeck.actions.registerAction(new StatusButton());

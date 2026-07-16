@@ -20,3 +20,4 @@
 *.gif binary
 *.ico binary
 *.streamDeckPlugin binary
+*.streamDeckProfile binary

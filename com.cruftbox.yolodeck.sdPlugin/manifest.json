@@ -2,6 +2,21 @@
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Actions": [
     {
+      "UUID": "com.cruftbox.yolodeck.overview",
+      "Name": "Open yolodeck",
+      "Icon": "imgs/plugin",
+      "Tooltip": "Aggregate session state. Put this on your normal profile; press to open the yolodeck layout.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/plugin",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
       "UUID": "com.cruftbox.yolodeck.session",
       "Name": "Session",
       "Icon": "imgs/session",
@@ -130,5 +145,13 @@
   "SDKVersion": 2,
   "Software": {
     "MinimumVersion": "6.6"
-  }
+  },
+  "Profiles": [
+    {
+      "Name": "yolodeck",
+      "DeviceType": 0,
+      "Readonly": false,
+      "DontAutoSwitchWhenInstalled": false
+    }
+  ]
 }
