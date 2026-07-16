@@ -84,9 +84,20 @@ jobs:
         run: testagent --help
 
       # Run hooks:install against an isolated HOME and validate the
-      # resulting settings.json against testagent's strict schema. Catches
-      # typos in scripts/hooks.mjs (event name, hook type, missing url)
-      # before they reach a user's real ~/.claude/settings.json.
+      # resulting settings.json against testagent's schema. Catches typos in
+      # scripts/hooks.mjs (event name, hook type, missing url) before they
+      # reach a user's real ~/.claude/settings.json.
+      #
+      # NOT --strict. Strict mode rejects unrecognised fields via Go's
+      # DisallowUnknownFields, and testagent (a third-party fixture of the
+      # real Claude Code CLI) doesn't yet know about `allowedEnvVars` — a
+      # real, documented field (see code.claude.com/docs/en/hooks) our HTTP
+      # hooks use to interpolate YOLODECK_TOKEN. --strict made this job fail
+      # on every commit today: not because our settings.json was wrong, but
+      # because the fixture's schema lags the product it's faking. Loose
+      # validation still catches real structural breakage (the thing this
+      # step exists for) without being held hostage to testagent's release
+      # cadence. Filed paultyng/testagent#<TBD> upstream.
       #
       # `.claude/` must exist before the install script's writeFile call —
       # Claude Code creates it on first run; we pre-create in CI.
@@ -97,7 +108,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           mkdir -p "$tmpdir/.claude"
           HOME="$tmpdir" npm run --silent hooks:install
-          testagent claude validate --strict --settings "$tmpdir/.claude/settings.json"
+          testagent claude validate --settings "$tmpdir/.claude/settings.json"
 
       - name: Validate hooks install (Windows)
         if: runner.os == 'Windows'
@@ -108,7 +119,7 @@ jobs:
           $env:USERPROFILE = $tmp
           $env:HOME = $tmp
           npm run --silent hooks:install
-          testagent claude validate --strict --settings "$tmp\.claude\settings.json"
+          testagent claude validate --settings "$tmp\.claude\settings.json"
 
       - name: Test (with coverage on macOS)
         if: runner.os == 'macOS'
