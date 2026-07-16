@@ -1,7 +1,7 @@
 import { action } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { State } from "../types";
-import { iconButton } from "../util/svg";
+import { INERT_BG, keyImage, type KeyLine } from "../util/svg";
 
 const AGENT_COLORS = ["#1f6feb", "#d29922", "#e16f24", "#da3633"];
 
@@ -14,45 +14,40 @@ function agentColor(count: number): string | null {
 export class StatusButton extends ManagedAction {
   protected render(): void {
     const session = this.manager?.activeSession;
+
     if (!session) {
-      for (const act of this.actions) act.setTitle("—");
+      const idle = keyImage({ bg: INERT_BG, lines: [{ text: "No session", dim: true }] });
+      for (const act of this.actions) act.setImage(idle);
       return;
     }
 
-    const lines: string[] = [];
+    const lines: KeyLine[] = [];
     switch (session.state) {
       case State.PROCESSING:
-        lines.push("Working");
-        if (session.currentTool) lines.push(session.currentTool);
+        lines.push({ text: "Working", bold: true });
+        if (session.currentTool) lines.push({ text: session.currentTool, dim: true });
         break;
       case State.AWAITING_PERMISSION:
-        lines.push("Permission?");
+        lines.push({ text: "Permission?", bold: true });
         break;
       case State.AWAITING_ELICITATION:
-        lines.push("Question?");
+        lines.push({ text: "Question?", bold: true });
         break;
       case State.IDLE:
-        if (session.lastError) {
-          lines.push("Error");
-        } else {
-          lines.push("Idle");
-        }
+        lines.push({ text: session.lastError ? "Error" : "Idle", bold: true });
         break;
       default:
-        lines.push(session.state);
+        lines.push({ text: session.state, bold: true });
     }
 
     if (session.activeWork > 0) {
-      lines.push("", `${session.activeWork} agent${session.activeWork > 1 ? "s" : ""}`);
+      lines.push({ text: `${session.activeWork} agent${session.activeWork > 1 ? "s" : ""}`, dim: true });
     }
 
-    const text = lines.join("\n");
-    const errorColor = session.state === State.IDLE && session.lastError ? "#da3633" : null;
-    const color = errorColor ?? agentColor(session.activeWork);
+    const isError = session.state === State.IDLE && session.lastError;
+    const bg = isError ? "#da3633" : agentColor(session.activeWork) ?? INERT_BG;
 
-    for (const act of this.actions) {
-      act.setTitle(text);
-      act.setImage(color ? iconButton(color, "") : undefined);
-    }
+    const image = keyImage({ bg, lines });
+    for (const act of this.actions) act.setImage(image);
   }
 }

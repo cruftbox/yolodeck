@@ -271,7 +271,7 @@ Root cause of the mismatch is **not yet established** — worth a separate look.
 
 - Is `session_id` stable across `--resume`? (Not blocking; affects slot stickiness.)
 
-### Stage 1 — Listener only
+### Stage 1 — Listener only ✅ DONE 2026-07-15
 
 Standalone Node process. No Stream Deck code at all.
 
@@ -281,7 +281,7 @@ Standalone Node process. No Stream Deck code at all.
 
 Fully testable without hardware. If the model is wrong, it's wrong here, cheaply.
 
-### Stage 2 — Read-only deck
+### Stage 2 — Read-only deck ✅ DONE 2026-07-15
 
 - Scaffold plugin (`@elgato/streamdeck` CLI), fold Stage 1's listener in
 - `session` action: render name + state + tool
@@ -290,7 +290,7 @@ Fully testable without hardware. If the model is wrong, it's wrong here, cheaply
 
 **Ships:** agent status on your desk. Watching only, no interaction.
 
-### Stage 3 — The payoff
+### Stage 3 — The payoff ✅ DONE 2026-07-15
 
 - `PermissionRequest` held open, resolved by button press
 - `pending` readout key
@@ -298,8 +298,31 @@ Fully testable without hardware. If the model is wrong, it's wrong here, cheaply
 
 **Ships:** the actual product. Everything after this is optional.
 
+**Verified on hardware 2026-07-15:**
+
+```
+04:48:47.975  PermissionRequest: holding response ... tool=Read
+04:48:47.975  → AWAITING_PERMISSION                    (deck goes gold)
+04:48:50.813  Resolved from Stream Deck: APPROVE session=809ef0af tool=Read
+04:48:50.821  PostToolUse  prev=PROCESSING  hasPending=false
+```
+
+8ms from button press to Claude proceeding. No dialog shown. The 2.8s before it is
+human reaction time — now the only latency in the system.
+
+Stages 1–3 arrived together by forking agentsd rather than building up, as PORTING.md
+recommended. Reaching them took ~5 changes to working code instead of three weekends.
+
 ### Stage 4 — Polish
 
+- ✅ **Key rendering rebuilt 2026-07-15.** The plugin was running two rendering systems
+  at once: some actions drew text into the SVG, others called `setTitle()` and relied on
+  Stream Deck's overlay with `TitleAlignment: "bottom"`. The overlay draws *on top of*
+  the image, so a centred glyph and a bottom title collided — "Approve" sat across the
+  tick — and long titles clipped, with "Permission?" rendering as "rmission" because the
+  overlay never shrinks text. Everything now goes through `keyImage()` in util/svg.ts:
+  glyph scaled and lifted, text below it, font auto-fitted to the key width.
+  `ShowTitle: false` on every manifest state; nothing calls `setTitle()`.
 - Pulse (session + status keys)
 - `usage` key + statusLine passthrough (see below)
 - `effort` key — display from statusLine, set via `UserPromptSubmit`

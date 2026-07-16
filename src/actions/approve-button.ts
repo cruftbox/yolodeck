@@ -1,7 +1,7 @@
 import { action, type KeyDownEvent } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { State } from "../types";
-import { iconButton } from "../util/svg";
+import { GLYPH, INERT_BG, keyImage } from "../util/svg";
 
 @action({ UUID: "com.cruftbox.yolodeck.approve" })
 export class ApproveButton extends ManagedAction {
@@ -12,15 +12,14 @@ export class ApproveButton extends ManagedAction {
   }
 
   protected render(): void {
-    const session = this.manager?.activeSession;
-    const awaiting = session?.state === State.AWAITING_PERMISSION;
-    const icon = iconButton(
-      awaiting ? "#1a7f37" : "#555555",
-      `<path d="M40 72 L62 94 L104 52" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
-    );
-    for (const act of this.actions) {
-      act.setTitle("Approve");
-      act.setImage(icon);
-    }
+    // Dark and inert unless something is actually pending — a live approve key is
+    // exactly how you approve a command you never read.
+    const live = this.manager?.activeSession?.state === State.AWAITING_PERMISSION;
+    const image = keyImage({
+      bg: live ? "#1a7f37" : INERT_BG,
+      glyph: GLYPH.check,
+      lines: [{ text: "Approve", bold: true }],
+    });
+    for (const act of this.actions) act.setImage(image);
   }
 }

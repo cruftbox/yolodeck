@@ -12,9 +12,7 @@
       "States": [
         {
           "Image": "imgs/session",
-          "ShowTitle": true,
-          "TitleAlignment": "bottom",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -29,9 +27,7 @@
       "States": [
         {
           "Image": "imgs/mode",
-          "ShowTitle": true,
-          "TitleAlignment": "middle",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -46,9 +42,7 @@
       "States": [
         {
           "Image": "imgs/status",
-          "ShowTitle": true,
-          "TitleAlignment": "middle",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -63,9 +57,7 @@
       "States": [
         {
           "Image": "imgs/focus",
-          "ShowTitle": true,
-          "TitleAlignment": "bottom",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -80,9 +72,7 @@
       "States": [
         {
           "Image": "imgs/approve",
-          "ShowTitle": true,
-          "TitleAlignment": "bottom",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -97,9 +87,7 @@
       "States": [
         {
           "Image": "imgs/approve",
-          "ShowTitle": true,
-          "TitleAlignment": "bottom",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     },
@@ -114,9 +102,7 @@
       "States": [
         {
           "Image": "imgs/deny",
-          "ShowTitle": true,
-          "TitleAlignment": "bottom",
-          "TitleColor": "#FFFFFF"
+          "ShowTitle": false
         }
       ]
     }

@@ -1,7 +1,7 @@
 import streamDeck, { action, type KeyDownEvent } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { focusAppByName, focusWindowForPid } from "../util/windows";
-import { iconButton } from "../util/svg";
+import { GLYPH, INERT_BG, keyImage } from "../util/svg";
 
 /**
  * Bring the active session's window to the front.
@@ -45,14 +45,11 @@ export class FocusButton extends ManagedAction {
   protected render(): void {
     const session = this.manager?.activeSession;
     // Dim when there's nothing to focus, so the key reads as inert rather than broken.
-    const icon = iconButton(
-      session ? "#30363d" : "#555555",
-      `<rect x="36" y="44" width="72" height="56" rx="6" stroke="white" stroke-width="7" fill="none"/>
-       <path d="M36 62 L108 62" stroke="white" stroke-width="7"/>`,
-    );
-    for (const act of this.actions) {
-      act.setTitle("Focus");
-      act.setImage(icon);
-    }
+    const image = keyImage({
+      bg: session ? "#30363d" : INERT_BG,
+      glyph: GLYPH.window,
+      lines: [{ text: "Focus", bold: true }],
+    });
+    for (const act of this.actions) act.setImage(image);
   }
 }
