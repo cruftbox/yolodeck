@@ -3,7 +3,7 @@ import { ManagedAction } from "./base";
 import { State } from "../types";
 import { iconButton } from "../util/svg";
 
-@action({ UUID: "com.paultyng.agentsd.always-allow" })
+@action({ UUID: "com.cruftbox.yolodeck.always-allow" })
 export class AlwaysAllowButton extends ManagedAction {
   override onKeyDown(_ev: KeyDownEvent): void {
     const session = this.manager?.activeSession;

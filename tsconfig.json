@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": false,
-    "outDir": "com.paultyng.agentsd.sdPlugin/bin",
+    "outDir": "com.cruftbox.yolodeck.sdPlugin/bin",
     "rootDir": "src",
     "types": ["node"]
   },

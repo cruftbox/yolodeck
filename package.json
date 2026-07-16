@@ -1,14 +1,14 @@
 {
-  "name": "agentsd",
+  "name": "yolodeck",
   "version": "0.1.0",
-  "description": "Stream Deck plugin for Claude Code sessions",
+  "description": "Stream Deck control surface for Claude Code sessions (Windows)",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "dev": "streamdeck dev",
-    "link": "streamdeck link com.paultyng.agentsd.sdPlugin",
-    "unlink": "streamdeck unlink com.paultyng.agentsd",
+    "link": "streamdeck link com.cruftbox.yolodeck.sdPlugin",
+    "unlink": "streamdeck unlink com.cruftbox.yolodeck",
     "hooks:install": "node -e \"import('./scripts/hooks.mjs').then(m => m.install())\"",
     "hooks:uninstall": "node -e \"import('./scripts/hooks.mjs').then(m => m.uninstall())\"",
     "debug:hooks": "node scripts/debug-hooks.mjs",
@@ -19,9 +19,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/paultyng/agentsd.git"
+    "url": "git+https://github.com/cruftbox/yolodeck.git"
   },
-  "author": "Paul Tyng",
+  "author": "Michael Pusateri",
   "license": "MIT",
   "dependencies": {
     "@elgato/streamdeck": "^2.0.4"

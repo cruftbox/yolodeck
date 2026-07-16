@@ -3,7 +3,7 @@ import { ManagedAction } from "./base";
 import { State } from "../types";
 import { iconButton } from "../util/svg";
 
-@action({ UUID: "com.paultyng.agentsd.deny" })
+@action({ UUID: "com.cruftbox.yolodeck.deny" })
 export class DenyButton extends ManagedAction {
   override onKeyDown(_ev: KeyDownEvent): void {
     const session = this.manager?.activeSession;

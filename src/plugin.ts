@@ -10,9 +10,12 @@ import { DenyButton } from "./actions/deny-button";
 import { FocusButton } from "./actions/focus-button";
 import { ModeButton } from "./actions/mode-button";
 import { SessionButton } from "./actions/session-button";
-import { SessionDial } from "./actions/session-dial";
 import { StatusButton } from "./actions/status-button";
-import { StopButton } from "./actions/stop-button";
+
+// Removed from upstream:
+//   SessionDial — Encoder action; this targets a 15-key MK.2 with no dials.
+//   StopButton  — process.kill(pid, "SIGINT") terminates rather than interrupts on
+//                 Windows. See session-manager.ts and PORTING.md.
 
 // Global error handlers — prevent silent crashes
 process.on("uncaughtException", (err) => {
@@ -32,12 +35,10 @@ setManager(sessionManager);
 streamDeck.actions.registerAction(new SessionButton());
 streamDeck.actions.registerAction(new ModeButton());
 streamDeck.actions.registerAction(new StatusButton());
-streamDeck.actions.registerAction(new StopButton());
 streamDeck.actions.registerAction(new ApproveButton());
 streamDeck.actions.registerAction(new AlwaysAllowButton());
 streamDeck.actions.registerAction(new DenyButton());
 streamDeck.actions.registerAction(new FocusButton());
-streamDeck.actions.registerAction(new SessionDial());
 
 streamDeck.logger.setLevel("info");
 

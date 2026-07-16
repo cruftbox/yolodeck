@@ -1,105 +1,175 @@
-# agentsd
+# yolodeck
 
-Stream Deck plugin for managing [Claude Code](https://claude.ai/code) sessions. Monitor session state, approve or deny permission requests, and control agents from hardware buttons.
+A Stream Deck control surface for [Claude Code](https://claude.com/claude-code) sessions, for **Windows**.
 
-<p align="center"><img src="docs/preview.png" alt="agentsd buttons on a Stream Deck" width="320"></p>
+Every running session gets a physical key, colored by state. When Claude needs permission, the key turns gold and shows you the command — you approve or deny with your thumb instead of alt-tabbing to find which of five terminals is waiting.
 
-## Requirements
+Everyone calls `--dangerously-skip-permissions` "YOLO mode." yolodeck is the anti-YOLO: approving gets cheap enough that skipping it stops being tempting.
 
-- **macOS 13+** (Windows support tracked separately; see issue for details)
-- **Stream Deck app 6.6+** plus a [Stream Deck](https://www.elgato.com/stream-deck) device
-- **Node.js 20+**
-- **Claude Code** with [HTTP hooks](https://code.claude.com/docs/en/hooks-guide) support
+> **Status: early.** The plugin runs and the mechanism is proven end to end, but this is a personal tool being built in the open. Expect sharp edges.
+
+## Credit
+
+**yolodeck is derived from [agentsd](https://github.com/paultyng/agentsd) by Paul Tyng (MIT).** This is not a light inspiration — the hook server, session manager, state machine, and most actions started as his code, and its git history is preserved in this repo. agentsd is macOS-only; yolodeck ports it to Windows and takes it in a different direction.
+
+If you're on a Mac, **use agentsd** — it's the original and it's better maintained.
+
+Upstream is kept as a git remote, so you can see exactly what changed:
+
+```sh
+git remote add upstream https://github.com/paultyng/agentsd.git
+git fetch upstream
+git diff upstream/main
+```
 
 ## How it works
 
-Claude Code HTTP hooks post events to a local server (`127.0.0.1:9200`). The plugin translates those events into session state on Stream Deck buttons and dials.
+Claude Code's hooks POST lifecycle events to a listener that lives inside the plugin process. The plugin never talks to Anthropic, holds no API keys, and never initiates — it answers questions it's asked.
 
 ```
-Claude Code hooks → HTTP server (:9200) → SessionManager → Stream Deck UI
+Claude Code session  --HTTP POST-->  yolodeck plugin  -->  Stream Deck app
+  (hooks in                          (listener on            (WebSocket,
+   settings.json)   <--JSON body--    127.0.0.1:9200)         setImage)
+                     allow/deny
 ```
 
-`PermissionRequest` hooks hold the HTTP response open (up to 120 s) so you can approve or deny directly from a button press.
+The key mechanism: a `PermissionRequest` hook **holds its HTTP response open** (up to 120s). Your button press *is* the response. No keystroke injection, no window focus games — measured at 11ms from request to resolution, with no dialog shown.
+
+There is no separate daemon and nothing to install as a service. The Stream Deck app launches and supervises the plugin, and supplies the Node runtime.
+
+## Requirements
+
+- **Windows 10+**
+- **Stream Deck app 6.6+** and a Stream Deck device. Built for a 15-key MK.2; no dials required.
+- **Claude Code 2.1.80+** (earlier versions lack `rate_limits` in the statusLine JSON)
+- **Node.js 24+** — for development only. Running the plugin doesn't need Node installed.
 
 ## Install
 
 ```sh
-git clone https://github.com/paultyng/agentsd.git && cd agentsd
+git clone https://github.com/cruftbox/yolodeck.git && cd yolodeck
 npm install
-npm install -g @elgato/cli   # one-time global; provides the `streamdeck` CLI used by `npm run link`/`dev`
+npm install -g @elgato/cli   # one-time; provides the `streamdeck` CLI
+
+# Generate a shared secret BEFORE installing hooks (see Security below)
+setx YOLODECK_TOKEN "..."    # 32 random bytes, hex
+
 npm run build
-npm run link                 # register plugin with Stream Deck
-npm run hooks:install        # add Claude Code HTTP hooks to ~/.claude/settings.json
+npm run link                 # register the plugin with Stream Deck
+npm run hooks:install        # add HTTP hooks to ~/.claude/settings.json
 ```
 
-After linking, restart the Stream Deck app. The actions appear under "Claude Code" in the action list.
+Restart the Stream Deck app after linking. Actions appear under "Claude Code".
 
 ### Uninstall
 
 ```sh
-npm run hooks:uninstall      # remove hooks from ~/.claude/settings.json
-npm run unlink               # unregister plugin
+npm run hooks:uninstall
+npm run unlink
 ```
+
+`hooks:uninstall` removes only yolodeck's entries, matched by URL prefix — anything else in your `settings.json` is left alone.
+
+## Security
+
+**The plugin needs no secrets, but it holds something more dangerous than an API key: an endpoint that approves arbitrary command execution.** An API key spends money; this runs code on your machine. Two things follow.
+
+**1. The listener binds to `127.0.0.1` explicitly.** Node's `server.listen(9200)` binds *every* interface — on a home network that would expose the approve endpoint to every other device on the LAN.
+
+**2. Set `YOLODECK_TOKEN`.** A web page you visit can POST to `127.0.0.1:9200` from your browser. Without a token, a malicious page could approve whatever's pending. With one it can't — browsers cannot set a custom `Authorization` header cross-origin without a CORS preflight, which the plugin never answers.
+
+`hooks:install` wires it up via Claude Code's `headers` + `allowedEnvVars`, so the secret lives in a user environment variable rather than plaintext in `settings.json`:
+
+```json
+{
+  "type": "http",
+  "url": "http://127.0.0.1:9200/hooks/PermissionRequest",
+  "timeout": 120,
+  "headers": { "Authorization": "Bearer $YOLODECK_TOKEN" },
+  "allowedEnvVars": ["YOLODECK_TOKEN"]
+}
+```
+
+If the variable is unset the plugin runs open and warns. That's upstream's behaviour; it isn't a good default.
+
+**Closing the deck can't hang Claude.** HTTP hooks fail open by design — connection failure, timeout, and non-2xx are all non-blocking, and Claude falls through to its normal terminal prompt. The corollary: you *cannot* fail closed. To deny anything, the endpoint must return 2xx with a decision body.
+
+## Actions
+
+| Action | Description |
+|---|---|
+| **Session** | Session name (from `cwd`), color-coded by state. Press to cycle. |
+| **Status** | Current state, tool name, and active work count (subagents + tasks). |
+| **Mode** | Permission mode and model name. |
+| **Approve** | Approve the pending permission. Green when live, gray otherwise. |
+| **Always Allow** | Approve *and* stop asking for this for the rest of the session. See below. |
+| **Deny** | Deny the pending permission. Red when live, gray otherwise. |
+| **Focus** | Bring the active session's window forward, resolved by PID. |
+
+### Always Allow is narrower here than upstream
+
+`PermissionRequest` payloads include `permission_suggestions` — a rule Claude Code has already scoped to the actual request. Reading `C:\Windows\System32\drivers\etc\hosts` suggests `//c/Windows/System32/drivers/etc/**`; a file one level up suggests `//c/Windows/System32/**`.
+
+agentsd ignores this and sends `{ toolName, ruleContent: "*" }` — approve one read of System32 and you've allowed `Read` **everywhere** for the session. yolodeck echoes the suggestion back instead, granting exactly what was asked for and nothing more. The blanket rule survives only as a fallback for payloads with no suggestions.
+
+## Session states
+
+| State | Color | Meaning |
+|---|---|---|
+| `IDLE` | Green | Connected, waiting for input |
+| `PROCESSING` | Blue | Tool execution in progress |
+| `AWAITING_PERMISSION` | Gold | Approve or deny from the deck |
+| `AWAITING_ELICITATION` | Purple | Claude is asking a question |
+| `DISCONNECTED` | Gray | No active session |
+
+## Key behaviours
+
+- **Sessions announce themselves.** Hooks live in `~/.claude/settings.json` (user-level), so every session on the machine reports in. There is no discovery — the first event *is* the registration.
+- **Registration is lazy, on any event.** Not just `SessionStart`. If the Stream Deck app starts after your terminals, those sessions would otherwise be invisible forever despite firing `PreToolUse` constantly.
+- **Stale pruning.** `SessionEnd` fires on a clean exit but not a hard kill. Sessions idle for 60s are pruned — but only from `IDLE`/`DISCONNECTED`, never `PROCESSING`, so a long-running agent isn't reaped.
+- **Permission queue.** Several sessions can be pending at once; they foreground in arrival order and resolving one advances to the next.
+- **Permission timeout.** 120s, then an explicit deny. The hook config's `timeout` must match, or Claude gives up while the deck is still holding the connection.
+- **Terminal approvals are handled.** If you approve in the terminal instead of on the deck, the stale pending permission and its timer are cleared.
+
+## Windows port notes
+
+The platform-specific surface of agentsd was about 45 lines. See [PORTING.md](PORTING.md) for the full analysis. In short:
+
+- **`lsof` → `netstat -ano`** for resolving the Claude Code PID from the incoming socket's remote port. Also made lazy — upstream re-resolves on every hook event, which is fine for `lsof` on macOS and not fine for spawning a process on Windows.
+- **`process.kill(pid, "SIGINT")` is not ported.** It looks cross-platform and isn't: on Windows, Node ignores the signal and terminates the target unconditionally. Porting it verbatim would kill Claude Code rather than interrupt the turn. The **Stop** action is removed as a result — Ctrl+C in the terminal already works.
+- **AppleScript → PowerShell + user32.** Upstream activated a terminal by name and never used the PID it had. We walk up the parent process chain to find the window actually hosting the session, since Claude Code is a console process with no window of its own.
+- **Session Dial removed.** Encoder action; this targets a 15-key MK.2.
+
+## Development
+
+```sh
+npm run watch        # rebuild on change
+npm run dev          # Stream Deck dev mode
+npm test             # vitest
+npm run typecheck
+npm run debug:hooks  # interactive hook event probe
+```
+
+E2E tests use [testagent](https://github.com/paultyng/testagent), a deterministic fake of the Claude Code CLI (no model, no API key). They skip when it isn't on PATH.
+
+`spike/` holds the throwaway that validated the premise before any of this was built — see [PLAN.md](PLAN.md) for what it proved.
 
 ## Configuration
 
 | Env var | Default | Effect |
 |---|---|---|
-| `AGENTSD_DEBUG` | unset | When `1`, the hook server exposes `GET /debug/sessions` returning a JSON snapshot of every tracked session. Used by the test suite; safe to enable locally for diagnostics. |
+| `YOLODECK_TOKEN` | unset | Shared secret required in the `Authorization` header. **Set this.** |
+| `YOLODECK_DEBUG` | unset | When `1`, exposes `GET /debug/sessions` with a JSON snapshot of tracked sessions. |
 
-## Development
+## Roadmap
 
-```sh
-npm run watch        # rebuild on file changes
-npm run dev          # Stream Deck dev mode (hot reload)
-npm run debug:hooks  # interactive hook event probe
-```
+See [PLAN.md](PLAN.md). Next up: pinned session slots keyed by project path, profile switching from a front-page status key, a rate-limit key fed by the statusLine JSON, and a slow breathe on the mode key when permissions are bypassed.
 
-## Testing
+## License
 
-`npm test` runs unit, integration, and end-to-end layers. E2E uses [testagent](https://github.com/paultyng/testagent), a deterministic fake of the Claude Code CLI (no model or API key); E2E tests skip when it's not on PATH. `npm run test:coverage` writes a report under `coverage/`. CI runs everything on Linux, macOS, and Windows.
-
-## Actions
-
-| Action | Type | Description |
-|--------|------|-------------|
-| **Session** | Button | Active session name, color-coded by state. Press to cycle sessions. Shows `(N/M)` counter. |
-| **Session Dial** | Encoder | Rotate to cycle sessions. Same info as Session button in dial feedback. |
-| **Status** | Button | Current state (`Working`, `Permission?`, `Question?`, `Idle`, `Error`), tool name, active work count (subagents + tasks). |
-| **Mode** | Button | Permission mode (`Default`, `Plan`, `Auto`, etc.) and model name. |
-| **Approve** | Button | Approve pending permission. Green when active, gray otherwise. |
-| **Always Allow** | Button | Approve and add session-scoped allow rule for the tool. Gold when active, gray otherwise. |
-| **Deny** | Button | Deny pending permission. Red when active, gray otherwise. |
-| **Stop** | Button | Send Ctrl+C interrupt to frontmost Ghostty terminal. Red when a session is active. |
-| **Focus** | Button | Bring Ghostty (or Claude Desktop) to foreground. |
-
-## Session states
-
-| State | Color | Meaning |
-|-------|-------|---------|
-| `IDLE` | Green | Session connected, waiting for input |
-| `PROCESSING` | Blue | Tool execution in progress |
-| `AWAITING_PERMISSION` | Gold | Permission prompt — approve or deny from Stream Deck |
-| `AWAITING_ELICITATION` | Purple | Claude is asking a question |
-| `DISCONNECTED` | Gray | No active session |
-
-## Key behaviors
-
-- **Auto-foreground**: Permission requests and elicitations automatically bring their session to the active slot.
-- **Permission queue**: Multiple sessions can have pending permissions simultaneously. They're foregrounded in arrival order; resolving one auto-advances to the next.
-- **Permission timeout**: 120s. Auto-denies if no response.
-- **Stale pruning**: Idle or disconnected sessions with no activity for 60s are automatically removed.
-- **Auto-create sessions**: If a hook event arrives for an unknown session (e.g., plugin restarted mid-session), the session is created as IDLE.
-- **Model backfill**: If the hook payload doesn't include a model, it's extracted from the session transcript.
-
-## Hook events
-
-The plugin registers hooks for all Claude Code lifecycle events:
-
-`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `StopFailure`, `PermissionRequest`, `Notification`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Elicitation`, `ElicitationResult`
-
-Each event is posted to `http://localhost:9200/hooks/{EventName}`. The `hooks:install` script manages registration in `~/.claude/settings.json`.
+MIT. Copyright (c) 2025 Paul Tyng, copyright (c) 2026 Michael Pusateri — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Inspired in part by [AgentDeck](https://github.com/puritysb/AgentDeck).
+- **[agentsd](https://github.com/paultyng/agentsd)** by Paul Tyng — the foundation this is built on.
+- **[AgentDeck](https://github.com/puritysb/AgentDeck)** by puritysb — a more ambitious multi-surface take, requires a Stream Deck+.

@@ -12,7 +12,7 @@ const STATE_COLORS: Record<State, string> = {
   [State.AWAITING_ELICITATION]: "#8957e5",
 };
 
-@action({ UUID: "com.paultyng.agentsd.session" })
+@action({ UUID: "com.cruftbox.yolodeck.session" })
 export class SessionButton extends ManagedAction {
   override onKeyDown(_ev: KeyDownEvent): void {
     this.manager?.cycleSession(1);

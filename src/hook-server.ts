@@ -1,8 +1,9 @@
-import { execFile } from "node:child_process";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
+import { timingSafeEqual } from "node:crypto";
 import streamDeck from "@elgato/streamdeck";
 import type { SessionManager } from "./session-manager";
+import { resolvePidForLocalPort } from "./util/windows";
 import type { HookEventName, HookPayload } from "./types";
 
 const VALID_EVENTS = new Set<HookEventName>([
@@ -19,10 +20,12 @@ const PERMISSION_TIMEOUT_MS = 120_000;
 const MAX_BODY_BYTES = 1_024 * 1_024;
 
 export interface HookServerOptions {
-  /** Expose GET /debug/sessions returning serialized session state. Defaults to env AGENTSD_DEBUG="1". */
+  /** Expose GET /debug/sessions returning serialized session state. Defaults to env YOLODECK_DEBUG="1". */
   debugEnabled?: boolean;
   /** PermissionRequest hold-open timeout in ms. Defaults to 120s. */
   permissionTimeoutMs?: number;
+  /** Shared secret required in the Authorization header. Defaults to env YOLODECK_TOKEN. */
+  token?: string;
 }
 
 export class HookServer {
@@ -30,14 +33,35 @@ export class HookServer {
   private readonly connections = new Set<Socket>();
   private readonly debugEnabled: boolean;
   private readonly permissionTimeoutMs: number;
+  private readonly token: string | null;
 
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly port: number = 9200,
     options: HookServerOptions = {},
   ) {
-    this.debugEnabled = options.debugEnabled ?? process.env.AGENTSD_DEBUG === "1";
+    this.debugEnabled = options.debugEnabled ?? process.env.YOLODECK_DEBUG === "1";
     this.permissionTimeoutMs = options.permissionTimeoutMs ?? PERMISSION_TIMEOUT_MS;
+    this.token = options.token ?? process.env.YOLODECK_TOKEN ?? null;
+  }
+
+  /**
+   * NOT IN UPSTREAM. agentsd relies on 127.0.0.1 binding alone, which is not enough:
+   * a web page you visit can POST to http://127.0.0.1:9200 from your browser, and this
+   * endpoint approves tool calls. A bearer token closes that — browsers cannot set a
+   * custom Authorization header cross-origin without a CORS preflight, which we never
+   * answer.
+   *
+   * Claude Code supplies it via the hook config's `headers` + `allowedEnvVars`, so the
+   * secret lives in a user env var rather than plaintext in settings.json.
+   */
+  private authorized(req: IncomingMessage): boolean {
+    if (!this.token) return true; // unset → open, matching upstream behaviour
+    const header = req.headers.authorization ?? "";
+    const expected = `Bearer ${this.token}`;
+    const a = Buffer.from(header);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
   }
 
   /** Resolved port after start() (useful when constructed with port=0). */
@@ -91,6 +115,13 @@ export class HookServer {
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // Parse URL once for both debug and hook paths.
     const url = new URL(req.url ?? "", "http://localhost");
+
+    if (!this.authorized(req)) {
+      streamDeck.logger.warn(`Rejected unauthorized request to ${url.pathname}`);
+      res.writeHead(401);
+      res.end();
+      return;
+    }
 
     // Debug endpoint (gated). GET only; serves a snapshot of current sessions.
     if (this.debugEnabled && req.method === "GET" && url.pathname === "/debug/sessions") {
@@ -148,6 +179,10 @@ export class HookServer {
         req,
         res,
         toolName: payload.tool_name,
+        toolInput: payload.tool_input,
+        // Carried through so always-allow can echo Claude Code's own scoped rule
+        // rather than inventing a broader one. See resolvePermissionAlwaysAllow.
+        suggestions: payload.permission_suggestions,
         timer,
       });
       this.resolveCallerPid(req, payload.session_id);
@@ -166,24 +201,29 @@ export class HookServer {
   /**
    * Resolve the PID of the Claude Code process from the incoming connection's remote port.
    * Runs asynchronously after the response is sent.
+   *
+   * WINDOWS PORT — two changes from upstream:
+   *
+   * 1. `lsof` → `netstat -ano` (see util/windows.ts).
+   * 2. Lazy, not per-event. Upstream re-resolves on *every* hook event to "stay fresh";
+   *    on macOS lsof is cheap enough for that. On Windows this spawns a process, and
+   *    PreToolUse fires constantly — so we resolve once per session and leave it. The
+   *    PID of a live session doesn't change, and a stale entry for a dead session is
+   *    harmless: focus simply fails, and stale pruning removes the session anyway.
    */
   private resolveCallerPid(req: IncomingMessage, sessionId: string): void {
+    if (this.sessionManager.hasPid(sessionId)) return;
+
     const remotePort = req.socket.remotePort;
     if (!remotePort) return;
 
-    execFile("lsof", ["-i", `TCP:${remotePort}`, "-t", "-sTCP:ESTABLISHED"], (err, stdout) => {
-      if (err || !stdout.trim()) return;
-      // lsof may return multiple PIDs; the first non-self PID is the caller
-      const myPid = process.pid;
-      for (const line of stdout.trim().split("\n")) {
-        const pid = parseInt(line.trim(), 10);
-        if (!isNaN(pid) && pid !== myPid) {
-          this.sessionManager.setSessionPid(sessionId, pid);
-          streamDeck.logger.debug(`Resolved PID ${pid} for session=${sessionId}`);
-          return;
-        }
-      }
-    });
+    resolvePidForLocalPort(remotePort)
+      .then((pid) => {
+        if (pid === null) return;
+        this.sessionManager.setSessionPid(sessionId, pid);
+        streamDeck.logger.debug(`Resolved PID ${pid} for session=${sessionId}`);
+      })
+      .catch((err) => streamDeck.logger.debug(`PID resolution failed: ${err}`));
   }
 }
 

@@ -3,7 +3,7 @@ import { ManagedAction } from "./base";
 import { State } from "../types";
 import { iconButton } from "../util/svg";
 
-@action({ UUID: "com.paultyng.agentsd.approve" })
+@action({ UUID: "com.cruftbox.yolodeck.approve" })
 export class ApproveButton extends ManagedAction {
   override onKeyDown(_ev: KeyDownEvent): void {
     const session = this.manager?.activeSession;

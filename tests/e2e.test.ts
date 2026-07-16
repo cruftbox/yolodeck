@@ -12,7 +12,13 @@ import type { HookEventName } from "../src/types";
 // If absent, skip these tests rather than fail the suite.
 let testagentPath: string | null = null;
 try {
-  testagentPath = execSync("command -v testagent", { encoding: "utf8" }).trim() || null;
+  // WINDOWS PORT — upstream used `command -v`, a POSIX shell builtin that cmd.exe
+  // doesn't have. It still "worked" (threw, so the suite skipped) but printed
+  // "'command' is not recognized" noise on every run, which reads like a failure.
+  const probe = process.platform === "win32" ? "where testagent" : "command -v testagent";
+  testagentPath = execSync(probe, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+    .split(/\r?\n/)[0]
+    .trim() || null;
 } catch {
   /* not on PATH */
 }

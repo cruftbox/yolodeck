@@ -3,7 +3,22 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
+
+// 127.0.0.1, never localhost — localhost can resolve to ::1 first and miss the listener.
 const BASE_URL = "http://127.0.0.1:9200/hooks";
+
+// NOT IN UPSTREAM. agentsd's listener has no auth at all, relying on loopback binding
+// alone. That isn't enough: a web page you visit can POST to 127.0.0.1:9200 from your
+// browser, and this endpoint approves tool calls.
+//
+// `allowedEnvVars` is what makes Claude Code interpolate $YOLODECK_TOKEN into the header,
+// and it keeps the secret in a user env var instead of plaintext in settings.json.
+// Browsers can't set a custom Authorization header cross-origin without a CORS preflight,
+// which the plugin never answers — so this closes the hole.
+//
+// Set it on Windows with:  setx YOLODECK_TOKEN "<32 random bytes, hex>"
+// If unset, the plugin runs open and logs a warning (upstream's behaviour).
+const TOKEN_VAR = "YOLODECK_TOKEN";
 
 const HOOK_EVENTS = [
   { name: "SessionStart", timeout: 5 },
@@ -46,13 +61,31 @@ export async function install() {
   for (const { name, timeout } of HOOK_EVENTS) {
     const matchers = hooks[name] ?? [];
     if (matchers.some((m) => m.hooks.some(isOurs))) continue;
-    matchers.push({ matcher: "", hooks: [{ type: "http", url: `${BASE_URL}/${name}`, timeout }] });
+    matchers.push({
+      matcher: "",
+      hooks: [{
+        type: "http",
+        url: `${BASE_URL}/${name}`,
+        timeout,
+        headers: { Authorization: `Bearer $${TOKEN_VAR}` },
+        allowedEnvVars: [TOKEN_VAR],
+      }],
+    });
     hooks[name] = matchers;
   }
 
   settings.hooks = hooks;
   await writeSettings(settings);
   console.log("Hooks installed into", SETTINGS_PATH);
+
+  if (!process.env[TOKEN_VAR]) {
+    console.warn(
+      `\n  WARNING: ${TOKEN_VAR} is not set. The listener will accept any local request,\n` +
+      `  including one from a web page you visit — and it approves tool calls.\n` +
+      `  Generate one and restart the Stream Deck app:\n\n` +
+      `    setx ${TOKEN_VAR} "$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"\n`,
+    );
+  }
 }
 
 export async function uninstall() {

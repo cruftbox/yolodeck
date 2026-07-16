@@ -203,7 +203,7 @@ export class SessionManager extends EventEmitter {
     return session;
   }
 
-  /** Store the resolved PID for a session. Updated on every hook event to stay fresh. */
+  /** Store the resolved PID for a session. Resolved once per session — see HookServer.resolveCallerPid. */
   setSessionPid(sessionId: string, pid: number): void {
     const session = this.sessions.get(sessionId);
     if (session) {
@@ -211,18 +211,24 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  /** Send SIGINT to the active session's Claude Code process. Returns true if signal was sent. */
-  interruptActiveSession(): boolean {
-    const session = this.activeSession;
-    if (!session?.pid) return false;
-    if (session.state === State.DISCONNECTED || session.state === State.IDLE) return false;
-    try {
-      process.kill(session.pid, "SIGINT");
-      return true;
-    } catch {
-      return false;
-    }
+  /** True once a PID has been resolved, so we don't pay for netstat again. */
+  hasPid(sessionId: string): boolean {
+    return this.sessions.get(sessionId)?.pid != null;
   }
+
+  // WINDOWS PORT — upstream's interruptActiveSession() is deliberately NOT ported.
+  //
+  // It called process.kill(pid, "SIGINT"). That looks cross-platform and is not: on
+  // Windows, Node ignores the signal name and terminates the target unconditionally,
+  // like SIGKILL. Porting it verbatim would not interrupt the turn — it would kill
+  // Claude Code outright and lose the session.
+  //
+  // A correct Windows interrupt needs GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid),
+  // which requires AttachConsole(pid), affects every process sharing that console, and
+  // needs SetConsoleCtrlHandler(NULL, TRUE) first or it kills this plugin too. Not worth
+  // it for v1: Ctrl+C in the terminal already works and your hands are already there.
+  //
+  // The Stop action is removed from the manifest to match. See PORTING.md.
 
   /** Bring a session to the foreground by ID. */
   focusSession(sessionId: string): void {
@@ -264,26 +270,49 @@ export class SessionManager extends EventEmitter {
     this.advancePermissionQueue();
   }
 
+  /**
+   * Approve, and add a rule so this request stops being asked for the rest of the session.
+   *
+   * DIVERGES FROM UPSTREAM — deliberately narrower. agentsd hand-rolls the rule as
+   * `{ toolName, ruleContent: "*" }`, which allows *every* call to that tool for the
+   * session: approve one Read of C:\Windows and you've allowed Read everywhere.
+   *
+   * Claude Code already sends a rule scoped to the actual request in
+   * `permission_suggestions` (see PLAN.md Stage 0.5). Echoing that back grants exactly
+   * what was asked for and nothing more. Verified: approving a read of
+   * .../drivers/etc/hosts added a rule covering .../drivers/etc/** — later reads in
+   * that directory stopped prompting, reads elsewhere still prompted.
+   *
+   * The blanket rule remains only as a fallback for a payload with no suggestions.
+   */
   resolvePermissionAlwaysAllow(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session?.pendingPermission) return false;
 
-    const { res, timer, toolName } = session.pendingPermission;
+    const { res, timer, toolName, suggestions } = session.pendingPermission;
     clearTimeout(timer);
 
     if (!res.writableEnded) {
-      const body = {
-        hookSpecificOutput: {
-          hookEventName: "PermissionRequest",
-          decision: {
-            behavior: "allow",
-            updatedPermissions: [{
+      const updatedPermissions =
+        suggestions && suggestions.length > 0
+          ? suggestions
+          : [{
               type: "addRules",
               rules: [{ toolName: toolName ?? "*", ruleContent: "*" }],
               behavior: "allow",
               destination: "session",
-            }],
-          },
+            }];
+
+      streamDeck.logger.info(
+        `Always-allow session=${sessionId} rules=${JSON.stringify(
+          updatedPermissions.flatMap((p) => p.rules?.map((r) => `${r.toolName}(${r.ruleContent})`) ?? []),
+        )}${suggestions?.length ? "" : " [fallback: no suggestions in payload]"}`,
+      );
+
+      const body = {
+        hookSpecificOutput: {
+          hookEventName: "PermissionRequest",
+          decision: { behavior: "allow", updatedPermissions },
         },
       };
       res.writeHead(200, { "Content-Type": "application/json" });

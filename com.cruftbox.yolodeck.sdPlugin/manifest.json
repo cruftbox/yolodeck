@@ -1,0 +1,147 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Actions": [
+    {
+      "UUID": "com.cruftbox.yolodeck.session",
+      "Name": "Session",
+      "Icon": "imgs/session",
+      "Tooltip": "Shows active Claude Code session. Press to cycle.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/session",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.mode",
+      "Name": "Mode",
+      "Icon": "imgs/mode",
+      "Tooltip": "Shows current permission mode.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/mode",
+          "ShowTitle": true,
+          "TitleAlignment": "middle",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.status",
+      "Name": "Status",
+      "Icon": "imgs/status",
+      "Tooltip": "Shows current session state and active tool.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": true,
+          "TitleAlignment": "middle",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.focus",
+      "Name": "Focus",
+      "Icon": "imgs/focus",
+      "Tooltip": "Bring Ghostty or Claude Desktop to front.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/focus",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.approve",
+      "Name": "Approve",
+      "Icon": "imgs/approve",
+      "Tooltip": "Approve pending permission request.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/approve",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.always-allow",
+      "Name": "Always Allow",
+      "Icon": "imgs/approve",
+      "Tooltip": "Approve and always allow this tool for the session.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/approve",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "UUID": "com.cruftbox.yolodeck.deny",
+      "Name": "Deny",
+      "Icon": "imgs/deny",
+      "Tooltip": "Deny pending permission request.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/deny",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    }
+  ],
+  "Author": "Michael Pusateri",
+  "Category": "yolodeck",
+  "CategoryIcon": "imgs/plugin",
+  "CodePath": "bin/plugin.js",
+  "Description": "Stream Deck control surface for Claude Code. Session state, permission approval, and rate limits on physical keys. Derived from agentsd by Paul Tyng.",
+  "Icon": "imgs/plugin",
+  "Name": "yolodeck",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "UUID": "com.cruftbox.yolodeck",
+  "Version": "0.1.0.0",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.6"
+  }
+}

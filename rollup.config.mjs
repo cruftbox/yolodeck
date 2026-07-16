@@ -5,7 +5,7 @@ import path from "node:path";
 import url from "node:url";
 
 const isWatching = !!process.env.ROLLUP_WATCH;
-const sdPlugin = "com.paultyng.agentsd.sdPlugin";
+const sdPlugin = "com.cruftbox.yolodeck.sdPlugin";
 
 /** @type {import('rollup').RollupOptions} */
 const config = {

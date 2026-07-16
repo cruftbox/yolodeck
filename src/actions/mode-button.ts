@@ -20,7 +20,7 @@ function shortenModel(model: string): string {
   return model.replace(/^claude-/, "").slice(0, 12);
 }
 
-@action({ UUID: "com.paultyng.agentsd.mode" })
+@action({ UUID: "com.cruftbox.yolodeck.mode" })
 export class ModeButton extends ManagedAction {
   protected render(): void {
     const session = this.manager?.activeSession;

@@ -10,7 +10,7 @@ function agentColor(count: number): string | null {
   return AGENT_COLORS[Math.min(count - 1, AGENT_COLORS.length - 1)];
 }
 
-@action({ UUID: "com.paultyng.agentsd.status" })
+@action({ UUID: "com.cruftbox.yolodeck.status" })
 export class StatusButton extends ManagedAction {
   protected render(): void {
     const session = this.manager?.activeSession;

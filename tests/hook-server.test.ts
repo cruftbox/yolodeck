@@ -9,7 +9,9 @@ let manager: SessionManager;
 let server: HookServer;
 let baseUrl: string;
 
-async function startServer(options: { debugEnabled?: boolean; permissionTimeoutMs?: number } = {}) {
+async function startServer(
+  options: { debugEnabled?: boolean; permissionTimeoutMs?: number; token?: string } = {},
+) {
   manager = new SessionManager();
   server = new HookServer(manager, 0, options);
   await server.start();
@@ -20,6 +22,54 @@ async function startServer(options: { debugEnabled?: boolean; permissionTimeoutM
 afterEach(async () => {
   await server?.stop();
   manager?.stop();
+});
+
+// NOT IN UPSTREAM. agentsd has no auth on the listener at all — loopback binding is its
+// only defence, and that doesn't stop a web page you visit from POSTing to
+// 127.0.0.1:9200 from your browser. This endpoint approves tool calls, so that matters.
+describe("HookServer bearer token", () => {
+  const TOKEN = "test-token-abc123";
+
+  it("401s a request with no Authorization header", async () => {
+    await startServer({ token: TOKEN });
+    const res = await fetch(`${baseUrl}/hooks/SessionStart`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: SESSION_A }),
+    });
+    expect(res.status).toBe(401);
+    expect(manager.sessionCount).toBe(0);
+  });
+
+  it("401s a request with the wrong token", async () => {
+    await startServer({ token: TOKEN });
+    const res = await fetch(`${baseUrl}/hooks/SessionStart`, {
+      method: "POST",
+      headers: { Authorization: "Bearer wrong-token-xxxxx" },
+      body: JSON.stringify({ session_id: SESSION_A }),
+    });
+    expect(res.status).toBe(401);
+    expect(manager.sessionCount).toBe(0);
+  });
+
+  it("accepts a request with the correct token", async () => {
+    await startServer({ token: TOKEN });
+    const res = await fetch(`${baseUrl}/hooks/SessionStart`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ session_id: SESSION_A }),
+    });
+    expect(res.status).toBe(200);
+    expect(manager.sessionCount).toBe(1);
+  });
+
+  it("runs open when no token is configured (upstream behaviour)", async () => {
+    await startServer({});
+    const res = await fetch(`${baseUrl}/hooks/SessionStart`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: SESSION_A }),
+    });
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("HookServer routing", () => {

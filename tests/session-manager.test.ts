@@ -6,7 +6,10 @@ import { State, type HookEventName, type PendingPermission } from "../src/types"
 const SESSION_A = "sess-aaaa-1111";
 const SESSION_B = "sess-bbbb-2222";
 
-function makePendingPermission(toolName = "Bash"): PendingPermission {
+function makePendingPermission(
+  toolName = "Bash",
+  suggestions?: PendingPermission["suggestions"],
+): PendingPermission {
   const res = {
     writableEnded: false,
     writeHead: vi.fn(),
@@ -19,9 +22,20 @@ function makePendingPermission(toolName = "Bash"): PendingPermission {
     req,
     res,
     toolName,
+    suggestions,
     timer: setTimeout(() => {}, 0),
   };
 }
+
+/** A real payload shape, copied from the Stage 0.5 spike log. */
+const READ_SUGGESTION: PendingPermission["suggestions"] = [
+  {
+    type: "addRules",
+    rules: [{ toolName: "Read", ruleContent: "//c/Windows/System32/**" }],
+    behavior: "allow",
+    destination: "session",
+  },
+];
 
 function startedManager() {
   const m = new SessionManager();
@@ -256,21 +270,58 @@ describe("SessionManager session cycling and PID", () => {
     expect(m.activeSession?.pid).toBe(12345);
   });
 
-  it("interruptActiveSession returns false when no PID and false from IDLE", () => {
+  // DIVERGES FROM UPSTREAM. agentsd always sends { toolName, ruleContent: "*" },
+  // which allows every call to that tool for the rest of the session. We echo the
+  // pre-scoped rule Claude Code supplies instead, so approving one read of System32
+  // doesn't silently allow Read everywhere.
+  it("always-allow echoes permission_suggestions rather than a blanket rule", () => {
     m = new SessionManager();
     m.handleEvent("SessionStart", { session_id: SESSION_A });
-    expect(m.interruptActiveSession()).toBe(false);
+    m.handleEvent("PermissionRequest", { session_id: SESSION_A });
+    const pending = makePendingPermission("Read", READ_SUGGESTION);
+    m.setPendingPermission(SESSION_A, pending);
+
+    expect(m.resolvePermissionAlwaysAllow(SESSION_A)).toBe(true);
+
+    const body = JSON.parse((pending.res.end as any).mock.calls[0][0]);
+    expect(body.hookSpecificOutput.decision.behavior).toBe("allow");
+    expect(body.hookSpecificOutput.decision.updatedPermissions).toEqual(READ_SUGGESTION);
+    // The blanket rule upstream would have sent must NOT appear.
+    expect(JSON.stringify(body)).not.toContain('"ruleContent":"*"');
+  });
+
+  it("always-allow falls back to a blanket rule when the payload has no suggestions", () => {
+    m = new SessionManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.handleEvent("PermissionRequest", { session_id: SESSION_A });
+    const pending = makePendingPermission("Bash", undefined);
+    m.setPendingPermission(SESSION_A, pending);
+
+    expect(m.resolvePermissionAlwaysAllow(SESSION_A)).toBe(true);
+
+    const body = JSON.parse((pending.res.end as any).mock.calls[0][0]);
+    const rules = body.hookSpecificOutput.decision.updatedPermissions[0].rules;
+    expect(rules).toEqual([{ toolName: "Bash", ruleContent: "*" }]);
+  });
+
+  // Replaces upstream's interruptActiveSession test. That method is not ported —
+  // process.kill(pid, "SIGINT") terminates rather than interrupts on Windows. See
+  // session-manager.ts and PORTING.md.
+  //
+  // hasPid is what took its place: it gates PID resolution so netstat runs once per
+  // session rather than on every hook event.
+  it("hasPid reports whether a PID has been resolved", () => {
+    m = new SessionManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    expect(m.hasPid(SESSION_A)).toBe(false);
 
     m.setSessionPid(SESSION_A, 12345);
-    // Still IDLE: should refuse
-    expect(m.interruptActiveSession()).toBe(false);
+    expect(m.hasPid(SESSION_A)).toBe(true);
+  });
 
-    m.handleEvent("PreToolUse", { session_id: SESSION_A, tool_name: "Bash" });
-    // Now PROCESSING; mock process.kill via spy
-    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
-    expect(m.interruptActiveSession()).toBe(true);
-    expect(killSpy).toHaveBeenCalledWith(12345, "SIGINT");
-    killSpy.mockRestore();
+  it("hasPid is false for an unknown session", () => {
+    m = new SessionManager();
+    expect(m.hasPid("no-such-session")).toBe(false);
   });
 });
 
