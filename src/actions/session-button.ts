@@ -10,6 +10,7 @@ import streamDeck, {
 import { basename } from "node:path";
 import { ManagedAction } from "./base";
 import { normalizePath } from "../session-manager";
+import { focusWindowForPid } from "../util/windows";
 import { State, type SessionState } from "../types";
 import { keyImage, type KeyLine } from "../util/svg";
 
@@ -99,11 +100,25 @@ export class SessionButton extends ManagedAction {
     });
   }
 
-  override onKeyDown(ev: KeyDownEvent): void {
+  override async onKeyDown(ev: KeyDownEvent): Promise<void> {
     const session = this.resolve(ev.action as KeyAction);
+    if (!session) return;
+
     // Target this session for approve/deny. Upstream cycled the active session here,
     // which stops making sense once each key owns one.
-    if (session) this.manager?.focusSession(session.id);
+    this.manager?.focusSession(session.id);
+
+    // Also raise this session's window — the "switch to it" half. Each session is its
+    // own terminal window, resolved by PID (netstat). In the desktop app every session
+    // shares one window, so this raises the app but can't select the conversation —
+    // the CLI-vs-GUI difference you can feel by pressing this key in each.
+    if (session.pid) {
+      try {
+        await focusWindowForPid(session.pid);
+      } catch (err) {
+        streamDeck.logger.debug(`Session focus by PID ${session.pid} failed: ${err}`);
+      }
+    }
   }
 
   /** Which session does a given key show? */
