@@ -359,8 +359,18 @@ recommended. Reaching them took ~5 changes to working code instead of three week
   trailing dates (`claude-haiku-4-5-20251001` → `Haiku 4.5`), not just two-number ones.
   Placed at 1,2 in the bundled profile.
 
-**Next up:** the slow breathe on the mode key when permissions are bypassed. The purple
-unguarded colouring already landed; the breathe is a timer pushing frames to setImage.
+- ✅ **Slow breathe on the mode key DONE 2026-07-16.** While the mode is unguarded
+  (bypassPermissions / dontAsk / auto) the purple key breathes — a 2.8s cosine-eased
+  fade between 50% and 100% brightness. Deliberately calm, not a blink: a bypassed deck
+  is a patient state, and the failure it guards against is *forgetting* the safety is
+  off, which motion in the corner of your eye fixes and a static colour doesn't. Colour
+  math is pure in util/color.ts (tested); the mode button runs one ~7fps interval, only
+  while such a key is on the deck, driven by wall-clock time so frames are jitter-proof
+  and multiple keys stay in phase. First animation in the plugin — the setImage-per-frame
+  approach the Animation section predicted.
+
+**Stage 4 remaining:** `effort` key (display from statusLine, set via UserPromptSubmit),
+`pending` readout key. Then the injection tier (Stage 5) if it earns its place.
 
 - ✅ **Key rendering rebuilt 2026-07-15.** The plugin was running two rendering systems
   at once: some actions drew text into the SVG, others called `setTitle()` and relied on
