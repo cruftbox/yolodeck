@@ -92,13 +92,30 @@ If the variable is unset the plugin runs open and warns. That's upstream's behav
 
 | Action | Description |
 |---|---|
-| **Session** | Session name (from `cwd`), color-coded by state. Press to cycle. |
-| **Status** | Current state, tool name, and active work count (subagents + tasks). |
-| **Mode** | Permission mode and model name. |
-| **Approve** | Approve the pending permission. Green when live, gray otherwise. |
+| **Session** | One key per session (name from `customTitle`, falling back to `cwd`), color-coded by state. Press to target it for approve/deny and raise its window. |
+| **Status** | The heartbeat — current state, tool name, active work count. Breathes while working, pulses while awaiting you. |
+| **Model** | The active session's model (e.g. "Opus 4.8"), read from the transcript. |
+| **Mode** | Permission mode — see below. Display-only; the plugin can't change Claude's mode. |
+| **Approve** | Approve the pending permission. Lit + pulsing when live, dim otherwise. |
 | **Always Allow** | Approve *and* stop asking for this for the rest of the session. See below. |
-| **Deny** | Deny the pending permission. Red when live, gray otherwise. |
+| **Deny** | Deny the pending permission. Lit + pulsing when live, dim otherwise. |
 | **Focus** | Bring the active session's window forward, resolved by PID. |
+| **Usage** | Rate-limit remaining. **Terminal sessions only** — the desktop app doesn't run the statusLine, so this reads "no data" there. |
+
+### Mode key: what each permission mode means
+
+Claude Code has six permission modes. The mode key shows whichever one the active session is in, using the same labels the app itself uses, so it's recognizable regardless of which surface (CLI, desktop app) set it. Colored **red** when Claude won't stop to ask before acting; **purple** when it still will.
+
+| Label on the key | Mode value | What runs without asking |
+|---|---|---|
+| Default | `default` (Manual) | Reads only — every edit and command prompts |
+| Accept / Edits | `acceptEdits` | Reads, plus file edits and common filesystem commands (`mkdir`, `mv`, `cp`, `rm`, `sed`) inside the working directory. Everything else, and anything outside that directory, still prompts |
+| Plan | `plan` | Reads only — Claude researches and proposes a plan without editing |
+| Auto | `auto` | **Red.** Nearly everything, screened in the background by a separate classifier model that blocks risky actions (`curl \| bash`, force pushes, secret exfiltration, production deploys, etc.) |
+| Don't / Ask | `dontAsk` | **Red.** Nothing except what's pre-approved by `permissions.allow` rules or a hook — everything else is auto-*denied*, not prompted. For locked-down CI, not interactive use |
+| BYPASS | `bypassPermissions` | **Red.** Everything, including writes to protected paths like `.git` and `.claude`. No safety checks at all. Anthropic's own docs: only use this in an isolated container/VM with no internet access |
+
+`acceptEdits` is likely what you're in day to day — edits go through silently, everything else (network calls, git pushes, arbitrary bash) still asks. The mode is set in the CLI (`Shift+Tab`) or the desktop app's mode selector, never by yolodeck.
 
 ### Always Allow is narrower here than upstream
 
@@ -108,13 +125,13 @@ agentsd ignores this and sends `{ toolName, ruleContent: "*" }` — approve one 
 
 ## Session states
 
-| State | Color | Meaning |
-|---|---|---|
-| `IDLE` | Green | Connected, waiting for input |
-| `PROCESSING` | Blue | Tool execution in progress |
-| `AWAITING_PERMISSION` | Gold | Approve or deny from the deck |
-| `AWAITING_ELICITATION` | Purple | Claude is asking a question |
-| `DISCONNECTED` | Gray | No active session |
+| State | Color | Motion | Meaning |
+|---|---|---|---|
+| `IDLE` | Green | Steady | Connected, waiting for input |
+| `PROCESSING` | Clay orange | Breathes | Claude is working |
+| `AWAITING_PERMISSION` | Amber | Pulses | Approve or deny from the deck |
+| `AWAITING_ELICITATION` | Purple | Pulses | Claude is asking a question |
+| `DISCONNECTED` | Dark gray | Steady | No active session |
 
 ## Key behaviours
 

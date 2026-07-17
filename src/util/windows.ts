@@ -17,6 +17,53 @@
 import { execFile } from "node:child_process";
 
 /**
+ * Shared C# type: raises a window to the foreground for real, not just a taskbar
+ * flash.
+ *
+ * Plain SetForegroundWindow from a background process (here, a PowerShell child the
+ * Stream Deck plugin spawned) hits Windows' foreground-lock: the OS only grants a
+ * foreground-change request to the process that currently owns the foreground input
+ * queue, or one that just received input. A PowerShell process spawned on a key press
+ * has neither, so the call silently fails and the window only flashes in the taskbar.
+ *
+ * The standard workaround: temporarily attach this thread's input queue to the
+ * current foreground thread's via AttachThreadInput. Once attached, Windows treats
+ * this thread as sharing the same input focus rights, so SetForegroundWindow (called
+ * from the SAME thread right after) is honored. Detach immediately after — leaving
+ * threads attached is a known source of input-routing bugs elsewhere in the system.
+ */
+const FORCE_FOREGROUND_TYPE = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class YoloWin {
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+
+  public static void ForceForeground(IntPtr target) {
+    ShowWindow(target, 9); // SW_RESTORE — un-minimise first
+    IntPtr fg = GetForegroundWindow();
+    uint fgThread = GetWindowThreadProcessId(fg, out _);
+    uint thisThread = GetCurrentThreadId();
+    bool attached = fgThread != thisThread && AttachThreadInput(thisThread, fgThread, true);
+    try {
+      SetForegroundWindow(target);
+      BringWindowToTop(target);
+    } finally {
+      if (attached) AttachThreadInput(thisThread, fgThread, false);
+    }
+  }
+}
+"@
+`.trim();
+
+/**
  * Walk up from `pid` through parent processes until one owns a visible window, then
  * bring it to the foreground.
  *
@@ -29,22 +76,13 @@ import { execFile } from "node:child_process";
 export function focusWindowForPid(pid: number): Promise<void> {
   const script = `
 $ErrorActionPreference = 'Stop'
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class YoloWin {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
-}
-"@
+${FORCE_FOREGROUND_TYPE}
 $target = ${pid}
 # Bounded walk — a cycle or an orphaned tree must not spin forever.
 for ($i = 0; $i -lt 8 -and $target -gt 0; $i++) {
   $proc = Get-Process -Id $target -ErrorAction SilentlyContinue
   if ($proc -and $proc.MainWindowHandle -ne 0 -and [YoloWin]::IsWindowVisible($proc.MainWindowHandle)) {
-    [YoloWin]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null   # 9 = SW_RESTORE
-    [YoloWin]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+    [YoloWin]::ForceForeground($proc.MainWindowHandle)
     exit 0
   }
   $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$target" -ErrorAction SilentlyContinue
@@ -72,20 +110,12 @@ export function focusAppByName(...names: string[]): Promise<void> {
   const list = names.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
   const script = `
 $ErrorActionPreference = 'Stop'
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class YoloWinByName {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-}
-"@
+${FORCE_FOREGROUND_TYPE}
 foreach ($n in @(${list})) {
   $p = Get-Process -Name $n -ErrorAction SilentlyContinue |
        Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
   if ($p) {
-    [YoloWinByName]::ShowWindow($p.MainWindowHandle, 9) | Out-Null
-    [YoloWinByName]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+    [YoloWin]::ForceForeground($p.MainWindowHandle)
     exit 0
   }
 }
