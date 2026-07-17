@@ -42,7 +42,6 @@ export class UsageButton extends ManagedAction {
     const usage = this.manager?.usage;
     for (const act of this.actions) {
       const which = this.settings.get(act.id)?.window ?? "five_hour";
-      const label = which === "five_hour" ? "5h" : "7d";
       const w = usage?.[which];
       let image: string;
       if (!usage || !w) {
@@ -53,7 +52,7 @@ export class UsageButton extends ManagedAction {
         const token = stale ? TOKENS.idle : pct <= 10 ? TOKENS.deny : pct <= 25 ? TOKENS.awaiting : TOKENS.approve;
         const lines: KeyLine[] = [
           { text: `${pct}%`, size: 44 },
-          { text: stale ? `${label} · stale` : `${label} · ${formatUntil(w.resets_at)}`, dim: true },
+          { text: stale ? "stale" : formatUntil(w.resets_at), dim: true },
         ];
         image = renderKey({ token, lines });
       }
