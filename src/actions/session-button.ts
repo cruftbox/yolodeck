@@ -112,11 +112,8 @@ export class SessionButton extends ManagedAction {
     // shares one window, so this raises the app but can't select the conversation —
     // the CLI-vs-GUI difference you can feel by pressing this key in each.
     if (session.pid) {
-      try {
-        await focusWindowForPid(session.pid);
-      } catch (err) {
-        streamDeck.logger.debug(`Session focus by PID ${session.pid} failed: ${err}`);
-      }
+      const r = await focusWindowForPid(session.pid);
+      streamDeck.logger.info(`Session focus by PID ${session.pid}: ok=${r.ok}\n${r.log}`);
     }
   }
 

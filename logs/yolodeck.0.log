@@ -1,0 +1,17 @@
+2026-07-17T15:17:16.791Z ERROR Process encountered uncaught exception 
+file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:7469
+        throw new Error("Failed to read manifest.json as the file does not exist.");
+              ^
+
+Error: Failed to read manifest.json as the file does not exist.
+    at Lazy.<anonymous> (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:7469:15)
+    at get value (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:695:45)
+    at getManifest (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:7511:23)
+    at Lazy.<anonymous> (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:8449:33)
+    at get value (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:695:45)
+    at ActionService.registerAction (file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:8636:22)
+    at file:///C:/Code/yolodeck/com.cruftbox.yolodeck.sdPlugin/bin/plugin.js:27213:20
+    at ModuleJobSync.runSync (node:internal/modules/esm/module_job:543:37)
+    at ModuleLoader.importSyncForRequire (node:internal/modules/esm/loader:353:47)
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1675:24)
+2026-07-17T15:17:16.792Z ERROR Uncaught exception: Error: Failed to read manifest.json as the file does not exist.

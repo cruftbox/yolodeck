@@ -22,20 +22,29 @@ import { execFile } from "node:child_process";
  *
  * Plain SetForegroundWindow from a background process (here, a PowerShell child the
  * Stream Deck plugin spawned) hits Windows' foreground-lock: the OS only grants a
- * foreground-change request to the process that currently owns the foreground input
- * queue, or one that just received input. A PowerShell process spawned on a key press
- * has neither, so the call silently fails and the window only flashes in the taskbar.
+ * foreground-change request to a process that (a) currently owns the foreground input
+ * queue, or (b) generated the last input event Windows saw. A background process has
+ * neither. Two workarounds stacked here, since either alone has been unreliable in
+ * testing from a real Stream Deck key press (as opposed to an interactive shell,
+ * which already owns some standing):
  *
- * The standard workaround: temporarily attach this thread's input queue to the
- * current foreground thread's via AttachThreadInput. Once attached, Windows treats
- * this thread as sharing the same input focus rights, so SetForegroundWindow (called
- * from the SAME thread right after) is honored. Detach immediately after — leaving
- * threads attached is a known source of input-routing bugs elsewhere in the system.
+ *  1. keybd_event a harmless Alt press/release. Windows credits the CALLING PROCESS
+ *     with "just generated input", which is one of the documented conditions for
+ *     SetForegroundWindow to succeed. This is the standard trick used by launchers,
+ *     AutoHotkey, etc. for exactly this scenario.
+ *  2. AttachThreadInput to the current foreground thread, so this thread shares its
+ *     input-focus standing for the duration of the call. Detached immediately after —
+ *     leaving threads attached is a known source of input-routing bugs elsewhere.
+ *
+ * Prints diagnostics to stdout (target handle, SetForegroundWindow's own return value,
+ * and the foreground window before/after) so failures are debuggable from the log
+ * instead of just "it didn't work".
  */
 const FORCE_FOREGROUND_TYPE = `
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class YoloWin {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -45,20 +54,47 @@ public static class YoloWin {
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
-  public static void ForceForeground(IntPtr target) {
-    ShowWindow(target, 9); // SW_RESTORE — un-minimise first
-    IntPtr fg = GetForegroundWindow();
+  const byte VK_MENU = 0x12;
+  const uint KEYEVENTF_KEYUP = 0x0002;
+
+  public static string TitleOf(IntPtr h) {
+    StringBuilder sb = new StringBuilder(256);
+    GetWindowText(h, sb, 256);
+    return sb.ToString();
+  }
+
+  public static bool ForceForeground(IntPtr target) {
+    IntPtr fgBefore = GetForegroundWindow();
+    Console.WriteLine("before: " + fgBefore + " '" + TitleOf(fgBefore) + "'");
+
+    ShowWindow(target, 9); // SW_RESTORE
+
+    // Trick 1: fake input, so this process is credited as having just generated it.
+    keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+
+    // Trick 2: share input-focus standing with whatever currently has it.
     uint fgPid;
-    uint fgThread = GetWindowThreadProcessId(fg, out fgPid);
+    uint fgThread = GetWindowThreadProcessId(fgBefore, out fgPid);
     uint thisThread = GetCurrentThreadId();
     bool attached = fgThread != thisThread && AttachThreadInput(thisThread, fgThread, true);
+
+    bool apiResult;
     try {
-      SetForegroundWindow(target);
+      apiResult = SetForegroundWindow(target);
       BringWindowToTop(target);
     } finally {
       if (attached) AttachThreadInput(thisThread, fgThread, false);
     }
+
+    System.Threading.Thread.Sleep(150);
+    IntPtr fgAfter = GetForegroundWindow();
+    Console.WriteLine("SetForegroundWindow returned: " + apiResult);
+    Console.WriteLine("after: " + fgAfter + " '" + TitleOf(fgAfter) + "'");
+    return fgAfter == target;
   }
 }
 "@
@@ -66,38 +102,38 @@ public static class YoloWin {
 
 /**
  * Walk up from `pid` through parent processes until one owns a visible window, then
- * bring it to the foreground.
- *
- * SetForegroundWindow is subject to Windows' foreground-lock rules: it can be refused
- * when the calling process doesn't own the current foreground window. ShowWindow with
- * SW_RESTORE first un-minimises and improves the odds. Failure is non-fatal — the
- * worst case is that the window doesn't come forward, which is exactly upstream's
- * worst case too.
+ * bring it to the foreground. Resolves with the script's stdout (diagnostics) and
+ * whether the target actually ended up foreground — success is not assumed just
+ * because the process exited 0.
  */
-export function focusWindowForPid(pid: number): Promise<void> {
+export function focusWindowForPid(pid: number): Promise<{ ok: boolean; log: string }> {
   const script = `
 $ErrorActionPreference = 'Stop'
 ${FORCE_FOREGROUND_TYPE}
 $target = ${pid}
-# Bounded walk — a cycle or an orphaned tree must not spin forever.
 for ($i = 0; $i -lt 8 -and $target -gt 0; $i++) {
   $proc = Get-Process -Id $target -ErrorAction SilentlyContinue
+  Write-Output ("checking pid $target handle=" + $(if ($proc) { $proc.MainWindowHandle } else { "n/a" }))
   if ($proc -and $proc.MainWindowHandle -ne 0 -and [YoloWin]::IsWindowVisible($proc.MainWindowHandle)) {
-    [YoloWin]::ForceForeground($proc.MainWindowHandle)
-    exit 0
+    $ok = [YoloWin]::ForceForeground($proc.MainWindowHandle)
+    Write-Output ("RESULT=" + $ok)
+    exit $(if ($ok) { 0 } else { 2 })
   }
   $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$target" -ErrorAction SilentlyContinue
-  if (-not $ci) { break }
+  if (-not $ci) { Write-Output "no parent found"; break }
   $target = $ci.ParentProcessId
 }
+Write-Output "walk exhausted, no visible window found"
 exit 1
 `.trim();
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     execFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-      (err) => (err ? reject(err) : resolve()),
+      (err, stdout, stderr) => {
+        resolve({ ok: !err, log: (stdout + stderr).trim() });
+      },
     );
   });
 }
@@ -107,27 +143,33 @@ exit 1
  * name. This is upstream's approach, kept only as a backstop — it can't tell one
  * session's window from another's.
  */
-export function focusAppByName(...names: string[]): Promise<void> {
+export function focusAppByName(...names: string[]): Promise<{ ok: boolean; log: string }> {
   const list = names.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
   const script = `
 $ErrorActionPreference = 'Stop'
 ${FORCE_FOREGROUND_TYPE}
 foreach ($n in @(${list})) {
-  $p = Get-Process -Name $n -ErrorAction SilentlyContinue |
-       Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  $matches = Get-Process -Name $n -ErrorAction SilentlyContinue
+  Write-Output ("name=$n candidates=" + ($matches | Measure-Object).Count)
+  $p = $matches | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
   if ($p) {
-    [YoloWin]::ForceForeground($p.MainWindowHandle)
-    exit 0
+    Write-Output ("using pid=" + $p.Id + " handle=" + $p.MainWindowHandle)
+    $ok = [YoloWin]::ForceForeground($p.MainWindowHandle)
+    Write-Output ("RESULT=" + $ok)
+    exit $(if ($ok) { 0 } else { 2 })
   }
 }
+Write-Output "no matching process with a window found"
 exit 1
 `.trim();
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     execFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-      (err) => (err ? reject(err) : resolve()),
+      (err, stdout, stderr) => {
+        resolve({ ok: !err, log: (stdout + stderr).trim() });
+      },
     );
   });
 }

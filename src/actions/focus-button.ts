@@ -10,10 +10,12 @@ export class FocusButton extends ManagedAction {
   override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
     const s = this.manager?.activeSession;
     if (s?.pid) {
-      try { await focusWindowForPid(s.pid); return; } catch (e) { streamDeck.logger.debug(`${e}`); }
+      const r = await focusWindowForPid(s.pid);
+      streamDeck.logger.info(`Focus by PID ${s.pid}: ok=${r.ok}\n${r.log}`);
+      if (r.ok) return;
     }
-    try { await focusAppByName("WindowsTerminal", "Claude", "Code", "wezterm-gui", "alacritty"); }
-    catch (e) { streamDeck.logger.warn(`Failed to focus any window: ${e}`); }
+    const r = await focusAppByName("WindowsTerminal", "Claude", "Code", "wezterm-gui", "alacritty");
+    streamDeck.logger.info(`Focus by name: ok=${r.ok}\n${r.log}`);
   }
 
   protected render(): void {
