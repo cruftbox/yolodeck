@@ -49,7 +49,8 @@ public static class YoloWin {
   public static void ForceForeground(IntPtr target) {
     ShowWindow(target, 9); // SW_RESTORE — un-minimise first
     IntPtr fg = GetForegroundWindow();
-    uint fgThread = GetWindowThreadProcessId(fg, out _);
+    uint fgPid;
+    uint fgThread = GetWindowThreadProcessId(fg, out fgPid);
     uint thisThread = GetCurrentThreadId();
     bool attached = fgThread != thisThread && AttachThreadInput(thisThread, fgThread, true);
     try {
