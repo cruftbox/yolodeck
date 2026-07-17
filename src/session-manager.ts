@@ -187,13 +187,15 @@ export class SessionManager extends EventEmitter {
 
       // Backfill model AND title from the transcript. The title (customTitle) is the
       // reliable per-session name — basename(cwd) collapses every home-dir session to
-      // "micha". Read once on first sight; re-read below when the title is still unknown.
+      // "micha".
       if (payload.transcript_path) {
         this.backfillFromTranscript(id, payload.transcript_path, event);
       }
-    } else if (!session.title && payload.transcript_path) {
-      // Title may not have been written to the transcript yet when the session first
-      // appeared (it's set once the conversation is named). Keep trying until we get it.
+    } else if (payload.transcript_path && (!session.title || event === "UserPromptSubmit")) {
+      // Re-read while the title is still unknown, and once per turn (UserPromptSubmit)
+      // regardless — /model changes mid-session with no hook field announcing it, so
+      // the transcript (which always has the current model) is the only source. Cheap:
+      // one file read per turn, not per tool call.
       this.backfillFromTranscript(id, payload.transcript_path, event);
     }
 
@@ -302,7 +304,7 @@ export class SessionManager extends EventEmitter {
         const s = this.sessions.get(id);
         if (!s) return;
         let changed = false;
-        if (model && !s.model) { s.model = model; changed = true; }
+        if (model && s.model !== model) { s.model = model; changed = true; }
         if (title && s.title !== title) { s.title = title; changed = true; }
         if (changed) this.emit("sessionUpdated", s, event);
       })
