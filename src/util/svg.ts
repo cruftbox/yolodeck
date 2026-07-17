@@ -13,10 +13,10 @@ import { TOKENS, type Token } from "./tokens";
  */
 
 const SIZE = 144; // authored @2x; Stream Deck downscales to 72
-const SAFE = 14; // bezel/diffuser eats the outer ring; keep content inside ~116
-const MIN_TEXT = 24; // never render a primary label smaller than this (@2x)
-const PRIMARY = 34; // default primary label size — big and legible; long text auto-shrinks
-const MAX_TEXT_WIDTH = SIZE - SAFE * 2; // 116
+const SAFE = 12; // bezel/diffuser eats the outer ring; keep content inside ~120
+const MIN_TEXT = 22; // floor for shrinking long labels (so names fit rather than truncate)
+const PRIMARY = 42; // default primary label size — short labels render this big
+const MAX_TEXT_WIDTH = SIZE - SAFE * 2; // 120
 
 export interface KeyLine {
   text: string;
@@ -77,7 +77,7 @@ function truncate(str: string, size: number): string {
 function line(str: string, baseSize: number, cy: number, dimmed: boolean): string {
   // Both primary and secondary must be readable on the downscaled 72px hardware key.
   // Secondary can shrink a little more before truncating, but not to illegibility.
-  const floor = dimmed ? 20 : MIN_TEXT;
+  const floor = dimmed ? 24 : MIN_TEXT;
   const size = fitSize(str, baseSize, floor);
   // If it still won't fit even at the floor size, truncate rather than clip.
   const p0 = textPath(str, size);
@@ -127,10 +127,10 @@ export function renderKey({ token, bg, glyph, lines = [], brightness = 1, mark =
   // Lay text lines vertically. With a glyph, the label sits in the lower third; without,
   // the block centers on the key. Line height accommodates the bigger secondary text.
   if (lines.length) {
-    const lh = 32;
-    const startY = glyph ? 104 : 72 - ((lines.length - 1) * lh) / 2;
+    const lh = 38;
+    const startY = glyph ? 106 : 72 - ((lines.length - 1) * lh) / 2;
     lines.forEach((l, i) => {
-      parts.push(line(l.text, l.size ?? (l.dim ? 24 : PRIMARY), startY + i * lh, !!l.dim));
+      parts.push(line(l.text, l.size ?? (l.dim ? 30 : PRIMARY), startY + i * lh, !!l.dim));
     });
   }
 

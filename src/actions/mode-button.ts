@@ -1,14 +1,22 @@
 import streamDeck, { action } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
-import { GLYPH, TOKENS, renderKey } from "../util/svg";
+import { TOKENS, renderKey, type KeyLine } from "../util/svg";
 
-// Full, meaningful labels — "Edits" alone is cryptic. These say what the mode does.
-const LABELS: Record<string, string> = {
-  default: "Asks All", acceptEdits: "Auto Edit", plan: "Plan",
-  auto: "Auto", dontAsk: "No Ask", bypassPermissions: "BYPASS",
+/**
+ * Permission-mode labels using the *desktop app's own wording*, so they're recognizable
+ * (you set them in the app). Two-word modes render on two big lines — no shield glyph,
+ * so the text fills the key and stays legible on the 72px hardware.
+ */
+const LABELS: Record<string, string[]> = {
+  default: ["Default"],
+  acceptEdits: ["Accept", "Edits"],
+  plan: ["Plan"],
+  auto: ["Auto"],
+  dontAsk: ["Don't", "Ask"],
+  bypassPermissions: ["BYPASS"],
 };
-// Modes where Claude won't stop to ask — shown red as a danger signal (steady, no
-// motion: per the spec, motion is reserved for working/awaiting).
+
+// Modes where Claude won't stop to ask — shown red as a danger signal.
 const UNGUARDED = new Set(["bypassPermissions", "dontAsk", "auto"]);
 
 /** Permission-mode signal. Display-only — the plugin can't set Claude's mode. */
@@ -16,8 +24,10 @@ const UNGUARDED = new Set(["bypassPermissions", "dontAsk", "auto"]);
 export class ModeButton extends ManagedAction {
   protected render(): void {
     const mode = this.manager?.activeSession?.permissionMode ?? "";
+    const label = LABELS[mode] ?? [mode || "—"];
     const token = UNGUARDED.has(mode) ? TOKENS.deny : TOKENS.permission;
-    const image = renderKey({ token, glyph: GLYPH.shield, lines: [{ text: LABELS[mode] ?? mode ?? "—" }] });
+    const lines: KeyLine[] = label.map((text) => ({ text }));
+    const image = renderKey({ token, lines });
     for (const act of this.actions) act.setImage(image).catch((e) => streamDeck.logger.debug(`${e}`));
   }
 }
