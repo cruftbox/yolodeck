@@ -30,9 +30,11 @@ describe("renderKey", () => {
     expect(svg).not.toContain('rx="16"');
   });
 
-  it("uses a linear gradient for a token fill", () => {
+  // Flat fills, not gradients: the deck's renderer posterizes linearGradient into
+  // visible bands on the hardware, so the token's top color is used flat.
+  it("fills flat with the token's top color, no gradient", () => {
     const svg = decode(renderKey({ token: TOKENS.working }));
-    expect(svg).toContain("<linearGradient");
+    expect(svg).not.toContain("<linearGradient");
     expect(svg.toLowerCase()).toContain(TOKENS.working.top.toLowerCase());
   });
 

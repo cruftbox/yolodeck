@@ -13,9 +13,10 @@ import { TOKENS, type Token } from "./tokens";
  */
 
 const SIZE = 144; // authored @2x; Stream Deck downscales to 72
-const SAFE = 16; // bezel/diffuser eats the outer ring; keep content inside 112x112
-const MIN_TEXT = 22; // never render a label smaller than this (@2x)
-const MAX_TEXT_WIDTH = SIZE - SAFE * 2; // 112
+const SAFE = 14; // bezel/diffuser eats the outer ring; keep content inside ~116
+const MIN_TEXT = 24; // never render a primary label smaller than this (@2x)
+const PRIMARY = 34; // default primary label size — big and legible; long text auto-shrinks
+const MAX_TEXT_WIDTH = SIZE - SAFE * 2; // 116
 
 export interface KeyLine {
   text: string;
@@ -104,19 +105,14 @@ function line(str: string, baseSize: number, cy: number, dimmed: boolean): strin
 export function renderKey({ token, bg, glyph, lines = [], brightness = 1, mark = false }: KeyImageOptions): string {
   const parts: string[] = [];
 
-  // Full-bleed fill (gradient from a token, or a flat hex), brightness-scaled.
-  if (token) {
-    const id = `g${gradSeq++}`;
-    const top = scaleHex(token.top, brightness);
-    const bottom = scaleHex(token.bottom, brightness);
-    parts.push(
-      `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">` +
-      `<stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient></defs>`,
-      `<rect width="${SIZE}" height="${SIZE}" fill="url(#${id})"/>`,
-    );
-  } else {
-    parts.push(`<rect width="${SIZE}" height="${SIZE}" fill="${escapeXml(scaleHex(bg ?? "#14171C", brightness))}"/>`);
-  }
+  // Full-bleed flat fill, brightness-scaled.
+  //
+  // The spec wanted a top→bottom gradient for a "lit plastic" look, but Stream Deck's
+  // SVG renderer either ignores linearGradient or posterizes it into visible bands on
+  // the hardware. The spec explicitly allows "flat hex if a gradient is inconvenient" —
+  // it is. Flat reads clean; the token's top color is the fill.
+  const fill = scaleHex(token ? token.top : bg ?? "#14171C", brightness);
+  parts.push(`<rect width="${SIZE}" height="${SIZE}" fill="${escapeXml(fill)}"/>`);
 
   if (glyph) {
     if (lines.length) {
@@ -134,7 +130,7 @@ export function renderKey({ token, bg, glyph, lines = [], brightness = 1, mark =
     const lh = 24;
     const startY = glyph ? 106 : 72 - ((lines.length - 1) * lh) / 2;
     lines.forEach((l, i) => {
-      parts.push(line(l.text, l.size ?? (l.dim ? 18 : 26), startY + i * lh, !!l.dim));
+      parts.push(line(l.text, l.size ?? (l.dim ? 18 : PRIMARY), startY + i * lh, !!l.dim));
     });
   }
 
