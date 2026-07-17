@@ -243,6 +243,37 @@ describe("SessionManager permission queue", () => {
   });
 });
 
+describe("SessionManager active-session tracking", () => {
+  let m: SessionManager;
+  afterEach(() => m?.stop());
+
+  // The monitor keys (status/model/mode) follow the session the user last prompted, so
+  // they reflect whatever you're working in rather than whichever registered first.
+  it("makes the session active when the user prompts it", () => {
+    m = new SessionManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.handleEvent("SessionStart", { session_id: SESSION_B });
+    expect(m.activeSession?.id).toBe(SESSION_A); // first, by default
+
+    m.handleEvent("UserPromptSubmit", { session_id: SESSION_B });
+    expect(m.activeSession?.id).toBe(SESSION_B); // user engaged B
+
+    m.handleEvent("UserPromptSubmit", { session_id: SESSION_A });
+    expect(m.activeSession?.id).toBe(SESSION_A); // ...then A
+  });
+
+  it("does NOT change the active session on tool-event bursts", () => {
+    m = new SessionManager();
+    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    m.handleEvent("UserPromptSubmit", { session_id: SESSION_A });
+    m.handleEvent("SessionStart", { session_id: SESSION_B });
+    // B does tool work but the user is engaged with A — A stays active.
+    m.handleEvent("PreToolUse", { session_id: SESSION_B, tool_name: "Bash" });
+    m.handleEvent("PostToolUse", { session_id: SESSION_B });
+    expect(m.activeSession?.id).toBe(SESSION_A);
+  });
+});
+
 describe("SessionManager session cycling and PID", () => {
   let m: SessionManager;
   afterEach(() => m?.stop());

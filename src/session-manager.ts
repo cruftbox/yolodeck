@@ -199,6 +199,9 @@ export class SessionManager extends EventEmitter {
 
     session.lastActivity = Date.now();
     if (payload.model) session.model = payload.model;
+    // Permission mode can change mid-session (you toggle bypass); keep it current, not
+    // stuck at whatever it was when the session first registered.
+    if (payload.permission_mode) session.permissionMode = payload.permission_mode;
 
     // Apply state transition
     const prevState = session.state;
@@ -236,8 +239,16 @@ export class SessionManager extends EventEmitter {
       this.clearPendingPermission(session);
     }
 
-    // Auto-foreground sessions needing user attention
+    // Follow the session the user is working in. The monitor keys (status, model, mode)
+    // render "the active session"; with several sessions running, that must track the
+    // one the user last engaged — not whichever registered first. UserPromptSubmit is
+    // the signal (the user just typed into this session); tool-event bursts don't steal
+    // focus. Elicitation foregrounds a question. PermissionRequest foregrounding is
+    // handled by setPendingPermission (queue-ordered), so it's not repeated here. Never
+    // steal focus while a permission is pending elsewhere — you may be mid-approve.
     if (event === "Elicitation") {
+      this.focusSession(id);
+    } else if (event === "UserPromptSubmit" && this.permissionQueue.length === 0) {
       this.focusSession(id);
     }
 
