@@ -75,9 +75,9 @@ function truncate(str: string, size: number): string {
 }
 
 function line(str: string, baseSize: number, cy: number, dimmed: boolean): string {
-  // Primary labels hold the doc's 22px floor; dim secondary lines (countdowns,
-  // versions) may shrink further before truncating, since they're supporting detail.
-  const floor = dimmed ? 14 : MIN_TEXT;
+  // Both primary and secondary must be readable on the downscaled 72px hardware key.
+  // Secondary can shrink a little more before truncating, but not to illegibility.
+  const floor = dimmed ? 20 : MIN_TEXT;
   const size = fitSize(str, baseSize, floor);
   // If it still won't fit even at the floor size, truncate rather than clip.
   const p0 = textPath(str, size);
@@ -125,12 +125,12 @@ export function renderKey({ token, bg, glyph, lines = [], brightness = 1, mark =
   }
 
   // Lay text lines vertically. With a glyph, the label sits in the lower third; without,
-  // the block centers on the key.
+  // the block centers on the key. Line height accommodates the bigger secondary text.
   if (lines.length) {
-    const lh = 24;
-    const startY = glyph ? 106 : 72 - ((lines.length - 1) * lh) / 2;
+    const lh = 32;
+    const startY = glyph ? 104 : 72 - ((lines.length - 1) * lh) / 2;
     lines.forEach((l, i) => {
-      parts.push(line(l.text, l.size ?? (l.dim ? 18 : PRIMARY), startY + i * lh, !!l.dim));
+      parts.push(line(l.text, l.size ?? (l.dim ? 24 : PRIMARY), startY + i * lh, !!l.dim));
     });
   }
 

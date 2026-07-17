@@ -2,10 +2,10 @@ import streamDeck, { action } from "@elgato/streamdeck";
 import { ManagedAction } from "./base";
 import { GLYPH, TOKENS, renderKey } from "../util/svg";
 
-// One word where possible (§6) — labels share the key with the shield glyph.
+// Full, meaningful labels — "Edits" alone is cryptic. These say what the mode does.
 const LABELS: Record<string, string> = {
-  default: "Default", acceptEdits: "Edits", plan: "Plan",
-  auto: "Auto", dontAsk: "Ask", bypassPermissions: "Bypass",
+  default: "Asks All", acceptEdits: "Auto Edit", plan: "Plan",
+  auto: "Auto", dontAsk: "No Ask", bypassPermissions: "BYPASS",
 };
 // Modes where Claude won't stop to ask — shown red as a danger signal (steady, no
 // motion: per the spec, motion is reserved for working/awaiting).
