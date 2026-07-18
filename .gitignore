@@ -5,6 +5,7 @@ com.cruftbox.yolodeck.sdPlugin/bin/
 *.js.map
 memory/
 com.cruftbox.yolodeck.sdPlugin/logs/
+/logs/
 
 # yolodeck spike artifacts
 spike/events.log
