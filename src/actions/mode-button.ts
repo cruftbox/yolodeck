@@ -13,7 +13,7 @@ const LABELS: Record<string, string[]> = {
   plan: ["Plan"],
   auto: ["Auto"],
   dontAsk: ["Don't", "Ask"],
-  bypassPermissions: ["Bypass", "Permissions"],
+  bypassPermissions: ["Bypass", "Perms"],
 };
 
 // Modes where Claude won't stop to ask — shown red as a danger signal.
