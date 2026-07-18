@@ -8,12 +8,12 @@ import { TOKENS, renderKey, type KeyLine } from "../util/svg";
  * so the text fills the key and stays legible on the 72px hardware.
  */
 const LABELS: Record<string, string[]> = {
-  default: ["Default"],
+  default: ["Manual"],
   acceptEdits: ["Accept", "Edits"],
   plan: ["Plan"],
   auto: ["Auto"],
   dontAsk: ["Don't", "Ask"],
-  bypassPermissions: ["BYPASS"],
+  bypassPermissions: ["Bypass", "Permissions"],
 };
 
 // Modes where Claude won't stop to ask — shown red as a danger signal.

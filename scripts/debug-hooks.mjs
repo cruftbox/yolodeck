@@ -76,7 +76,7 @@ async function run() {
   // 1
   await step("SessionStart (sess-A)", [
     `${C.green}IDLE${C.reset} — green session, "Idle"`,
-    `Mode button: "Default" + "Opus 4.6"`,
+    `Mode button: "Manual" + "Opus 4.6"`,
   ], () =>
     post("SessionStart", { session_id: SESS_A, cwd: "/tmp/debug", permission_mode: "default", model: "claude-opus-4-6" })
   );
@@ -283,7 +283,7 @@ async function run() {
   await step("SessionStart (sess-B, Sonnet)", [
     `Two sessions — dial shows "1/2" or "2/2"`,
     `Tap Session button to cycle, inspect dial`,
-    `Sess-B mode: "Default" + "Sonnet 4.6"`,
+    `Sess-B mode: "Manual" + "Sonnet 4.6"`,
   ], () =>
     post("SessionStart", { session_id: SESS_B, cwd: "/tmp/debug-b", permission_mode: "default", model: "claude-sonnet-4-6" })
   );
