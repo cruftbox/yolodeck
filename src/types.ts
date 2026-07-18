@@ -111,6 +111,20 @@ export interface PendingPermission {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/**
+ * Context-window usage for one session, from the statusLine channel.
+ *
+ * Unlike UsageMetrics (rate limits), this is per-session, not account-wide — each
+ * session has its own transcript and its own token count. Lives on SessionState
+ * rather than a single manager-level field.
+ */
+export interface ContextWindowMetrics {
+  usedPercentage: number;
+  contextWindowSize: number;
+  /** Epoch ms this arrived — statusLine goes quiet when idle, so age matters. */
+  receivedAt: number;
+}
+
 export interface SessionState {
   id: string;
   state: State;
@@ -127,6 +141,8 @@ export interface SessionState {
   pid: number | null;
   /** Epoch ms of last hook event, used for stale-session pruning. */
   lastActivity: number;
+  /** Context-window usage from the statusLine channel; null until it first reports. */
+  contextWindow: ContextWindowMetrics | null;
 }
 
 /**
@@ -146,19 +162,24 @@ export interface SessionSnapshot {
   lastActivity: number;
   hasPendingPermission: boolean;
   pendingPermissionToolName: string | null;
+  contextWindow: ContextWindowMetrics | null;
 }
 
 /**
  * The subset of Claude Code's statusLine stdin JSON that we consume.
  *
- * The full payload also carries cost, context_window, effort.level, session_id,
- * transcript_path and model — see scripts/statusline.mjs, which renders some of it
- * into the terminal on the way past.
+ * The full payload also carries cost, effort.level, transcript_path and model — see
+ * scripts/statusline.mjs, which renders some of it into the terminal on the way past.
  */
 export interface StatusLinePayload {
   rate_limits?: {
     five_hour?: RateLimitWindow;
     seven_day?: RateLimitWindow;
+  };
+  /** Per-session, unlike rate_limits — each session has its own transcript. */
+  context_window?: {
+    used_percentage?: number;
+    context_window_size?: number;
   };
   session_id?: string;
 }

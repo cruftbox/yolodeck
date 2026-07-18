@@ -149,6 +149,7 @@ export class HookServer {
         const payload = (await readJson(req)) as unknown as StatusLinePayload;
         const hadRates = !!(payload.rate_limits?.five_hour || payload.rate_limits?.seven_day);
         this.sessionManager.setUsage(payload);
+        this.sessionManager.setContextWindow(payload);
         streamDeck.logger.info(`statusLine received: rate_limits=${hadRates} session=${payload.session_id ?? "?"}`);
       } catch {
         /* a malformed status line must never disturb the terminal */

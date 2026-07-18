@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import streamDeck from "@elgato/streamdeck";
 import { transition } from "./state-machine";
-import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState, StatusLinePayload, UsageMetrics } from "./types";
+import type { ContextWindowMetrics, HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState, StatusLinePayload, UsageMetrics } from "./types";
 import { State } from "./types";
 import { readTranscriptMeta } from "./util/transcript";
 
@@ -112,6 +112,31 @@ export class SessionManager extends EventEmitter {
     this.emit("usageUpdated", this._usage);
   }
 
+  /**
+   * Called by the statusLine passthrough. Unlike setUsage, this is per-session — it
+   * attaches to whichever session's statusLine reported it via `payload.session_id`
+   * rather than a single manager-level value. Ignores payloads with no session_id, no
+   * context_window, or an unknown session (statusLine can arrive before the session's
+   * first hook event registers it).
+   */
+  setContextWindow(payload: StatusLinePayload): void {
+    const id = payload.session_id;
+    const cw = payload.context_window;
+    if (!id || typeof cw?.used_percentage !== "number") return;
+    const session = this.sessions.get(id);
+    if (!session) return;
+    const metrics: ContextWindowMetrics = {
+      usedPercentage: cw.used_percentage,
+      contextWindowSize: cw.context_window_size ?? 200_000,
+      receivedAt: Date.now(),
+    };
+    session.contextWindow = metrics;
+    // Not a hook event — the statusLine channel, like setUsage. "sessionUpdated"
+    // listeners (ManagedAction) only care that something changed, not the label, but
+    // don't claim a HookEventName that didn't happen.
+    this.emit("sessionUpdated", session, "ContextWindowUpdated");
+  }
+
   get activeSessionId(): string | undefined {
     return this.activeSession?.id;
   }
@@ -148,6 +173,7 @@ export class SessionManager extends EventEmitter {
       lastActivity: s.lastActivity,
       hasPendingPermission: !!s.pendingPermission,
       pendingPermissionToolName: s.pendingPermission?.toolName ?? null,
+      contextWindow: s.contextWindow,
     }));
   }
 
@@ -182,6 +208,7 @@ export class SessionManager extends EventEmitter {
         pendingPermission: null,
         pid: null,
         lastActivity: Date.now(),
+        contextWindow: null,
       };
       this.sessions.set(id, session);
 

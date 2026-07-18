@@ -68,11 +68,10 @@ const backToDefault = () => ({
 //
 //   [ sess ][ sess ][ sess ][ sess ][ sess ]
 //   [ stat ][appr. ][ deny ][always][ mode ]
-//   [usage ][model ][      ][focus ][ back ]
+//   [usage ][model ][context][focus ][ back ]
 //
 // Session keys are unpinned by default: they claim sessions in deck order, and you pin
-// the ones you care about via the property inspector. Row 3 is left mostly empty on
-// purpose — usage and effort land there once they exist.
+// the ones you care about via the property inspector.
 const actions = {
   "0,0": act("session", "Session"),
   "1,0": act("session", "Session"),
@@ -88,6 +87,7 @@ const actions = {
 
   "0,2": act("usage", "Usage"),
   "1,2": act("model", "Model"),
+  "2,2": act("context", "Context"),
   "3,2": act("focus", "Focus"),
   "4,2": backToDefault(),
 };

@@ -7,6 +7,7 @@ import { fontAvailable } from "./util/text";
 
 import { AlwaysAllowButton } from "./actions/always-allow-button";
 import { ApproveButton } from "./actions/approve-button";
+import { ContextButton } from "./actions/context-button";
 import { DenyButton } from "./actions/deny-button";
 import { FocusButton } from "./actions/focus-button";
 import { ModeButton } from "./actions/mode-button";
@@ -40,6 +41,7 @@ streamDeck.actions.registerAction(new OverviewButton());
 streamDeck.actions.registerAction(new SessionButton());
 streamDeck.actions.registerAction(new ModeButton());
 streamDeck.actions.registerAction(new ModelButton());
+streamDeck.actions.registerAction(new ContextButton());
 streamDeck.actions.registerAction(new StatusButton());
 streamDeck.actions.registerAction(new ApproveButton());
 streamDeck.actions.registerAction(new AlwaysAllowButton());

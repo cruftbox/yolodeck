@@ -63,6 +63,21 @@
       ]
     },
     {
+      "UUID": "com.cruftbox.yolodeck.context",
+      "Name": "Context",
+      "Icon": "imgs/status",
+      "Tooltip": "The active session's context-window usage. Needs the statusLine installed.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
       "UUID": "com.cruftbox.yolodeck.status",
       "Name": "Status",
       "Icon": "imgs/status",
