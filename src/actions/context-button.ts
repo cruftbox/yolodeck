@@ -17,14 +17,14 @@ export class ContextButton extends ManagedAction {
     const cw = this.manager?.activeSession?.contextWindow;
     let image: string;
     if (!cw) {
-      image = renderKey({ token: TOKENS.idle, lines: [{ text: "context" }, { text: "no data", dim: true }] });
+      image = renderKey({ token: TOKENS.idle, lines: [{ text: "Context" }, { text: "no data", dim: true }] });
     } else {
       const pct = Math.round(cw.usedPercentage);
       const stale = Date.now() - cw.receivedAt > STALE_MS;
       const token = stale ? TOKENS.idle : TOKENS[contextBand(cw.usedPercentage)];
       const lines: KeyLine[] = [
         { text: `${pct}%`, size: 44 },
-        { text: stale ? "stale" : "ctx", dim: true },
+        { text: stale ? "stale" : "Context", dim: true },
       ];
       image = renderKey({ token, lines });
     }
