@@ -18,7 +18,6 @@ export default defineConfig({
       exclude: [
         "src/plugin.ts",
         "src/actions/**",
-        "src/util/applescript.ts",
       ],
     },
   },
