@@ -14,8 +14,6 @@ Everyone calls `--dangerously-skip-permissions` "YOLO mode." yolodeck is the ant
 
 If you're on a Mac, **use agentsd** — it's the original and it's better maintained.
 
-There's no `upstream` git remote here. One was kept briefly early on for `git diff upstream/main`, but a remote literally named `upstream` makes `gh` silently prefer it over `origin` for repo resolution (a fork-workflow heuristic) — every `gh` command in this repo was quietly operating on `paultyng/agentsd` instead of `cruftbox/yolodeck` until that was noticed and removed. If you want the historical diff, clone agentsd separately rather than adding it as a remote here.
-
 ## How it works
 
 Claude Code's hooks POST lifecycle events to a listener that lives inside the plugin process. The plugin never talks to Anthropic, holds no API keys, and never initiates — it answers questions it's asked.
@@ -53,7 +51,7 @@ npm run link                 # register the plugin with Stream Deck
 npm run hooks:install        # add HTTP hooks to ~/.claude/settings.json
 ```
 
-Restart the Stream Deck app after linking. Actions appear under "Claude Code".
+Restart the Stream Deck app after linking. Actions appear under "yolodeck".
 
 ### Uninstall
 
@@ -108,12 +106,12 @@ Claude Code has six permission modes. The mode key shows whichever one the activ
 
 | Label on the key | Mode value | What runs without asking |
 |---|---|---|
-| Default | `default` (Manual) | Reads only — every edit and command prompts |
+| Manual | `default` | Reads only — every edit and command prompts |
 | Accept / Edits | `acceptEdits` | Reads, plus file edits and common filesystem commands (`mkdir`, `mv`, `cp`, `rm`, `sed`) inside the working directory. Everything else, and anything outside that directory, still prompts |
 | Plan | `plan` | Reads only — Claude researches and proposes a plan without editing |
 | Auto | `auto` | **Red.** Nearly everything, screened in the background by a separate classifier model that blocks risky actions (`curl \| bash`, force pushes, secret exfiltration, production deploys, etc.) |
 | Don't / Ask | `dontAsk` | **Red.** Nothing except what's pre-approved by `permissions.allow` rules or a hook — everything else is auto-*denied*, not prompted. For locked-down CI, not interactive use |
-| BYPASS | `bypassPermissions` | **Red.** Everything, including writes to protected paths like `.git` and `.claude`. No safety checks at all. Anthropic's own docs: only use this in an isolated container/VM with no internet access |
+| Bypass / Perms | `bypassPermissions` | **Red.** Everything, including writes to protected paths like `.git` and `.claude`. No safety checks at all. Anthropic's own docs: only use this in an isolated container/VM with no internet access |
 
 `acceptEdits` is likely what you're in day to day — edits go through silently, everything else (network calls, git pushes, arbitrary bash) still asks. The mode is set in the CLI (`Shift+Tab`) or the desktop app's mode selector, never by yolodeck.
 
@@ -137,7 +135,7 @@ agentsd ignores this and sends `{ toolName, ruleContent: "*" }` — approve one 
 
 - **Sessions announce themselves.** Hooks live in `~/.claude/settings.json` (user-level), so every session on the machine reports in. There is no discovery — the first event *is* the registration.
 - **Registration is lazy, on any event.** Not just `SessionStart`. If the Stream Deck app starts after your terminals, those sessions would otherwise be invisible forever despite firing `PreToolUse` constantly.
-- **Stale pruning.** `SessionEnd` fires on a clean exit but not a hard kill. Sessions idle for 60s are pruned — but only from `IDLE`/`DISCONNECTED`, never `PROCESSING`, so a long-running agent isn't reaped.
+- **Stale pruning.** `SessionEnd` fires on a clean exit but not a hard kill. A session with a resolved PID is pruned the moment that process actually dies (checked every 30s), no matter how long it's sat idle. Only sessions whose PID hasn't resolved yet fall back to a 10-minute idle timeout, and only from `IDLE`/`DISCONNECTED`, never `PROCESSING`, so a long-running agent isn't reaped.
 - **Permission queue.** Several sessions can be pending at once; they foreground in arrival order and resolving one advances to the next.
 - **Permission timeout.** 120s, then an explicit deny. The hook config's `timeout` must match, or Claude gives up while the deck is still holding the connection.
 - **Terminal approvals are handled.** If you approve in the terminal instead of on the deck, the stale pending permission and its timer are cleared.
@@ -198,4 +196,3 @@ MIT. Copyright (c) 2025 Paul Tyng, copyright (c) 2026 Michael Pusateri — see [
 ## Acknowledgments
 
 - **[agentsd](https://github.com/paultyng/agentsd)** by Paul Tyng — the foundation this is built on.
-- **[AgentDeck](https://github.com/puritysb/AgentDeck)** by puritysb — a more ambitious multi-surface take, requires a Stream Deck+.
