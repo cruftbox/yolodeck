@@ -32,10 +32,3 @@ export function formatUntil(epochSeconds: number, now = Date.now()): string {
 
   return `${Math.floor(hours / 24)}d${String(hours % 24).padStart(2, "0")}h`;
 }
-
-/** Green while there's room, amber when it's worth knowing, red when it's nearly gone. */
-export function usageColor(pctRemaining: number): string {
-  if (pctRemaining <= 10) return "#da3633";
-  if (pctRemaining <= 25) return "#d29922";
-  return "#1a7f37";
-}

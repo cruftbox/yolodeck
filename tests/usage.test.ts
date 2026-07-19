@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { SessionManager } from "../src/session-manager";
 // Imported from util/, not the action: the action file carries an SDK decorator that
 // the test transform chokes on, and pure logic has no business living behind it.
-import { formatUntil, usageColor, remaining } from "../src/util/usage";
+import { formatUntil, remaining } from "../src/util/usage";
 
 // Real shape, from the Claude Code statusLine docs.
 const PAYLOAD = {
@@ -63,23 +63,6 @@ describe("remaining", () => {
   it("clamps out-of-range input rather than rendering a negative bar", () => {
     expect(remaining({ used_percentage: 120, resets_at: 0 })).toBe(0);
     expect(remaining({ used_percentage: -5, resets_at: 0 })).toBe(100);
-  });
-});
-
-describe("usageColor", () => {
-  it("is green while there is room", () => {
-    expect(usageColor(100)).toBe("#1a7f37");
-    expect(usageColor(26)).toBe("#1a7f37");
-  });
-
-  it("is amber at or below 25% remaining", () => {
-    expect(usageColor(25)).toBe("#d29922");
-    expect(usageColor(11)).toBe("#d29922");
-  });
-
-  it("is red at or below 10% remaining", () => {
-    expect(usageColor(10)).toBe("#da3633");
-    expect(usageColor(0)).toBe("#da3633");
   });
 });
 
