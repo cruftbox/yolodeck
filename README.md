@@ -4,9 +4,7 @@ A Stream Deck control surface for [Claude Code](https://claude.com/claude-code) 
 
 Every running session gets a physical key, colored by state. When Claude needs permission, the key turns gold and shows you the command — you approve or deny with your thumb instead of alt-tabbing to find which of five terminals is waiting.
 
-Everyone calls `--dangerously-skip-permissions` "YOLO mode." yolodeck is the anti-YOLO: approving gets cheap enough that skipping it stops being tempting.
-
-> **Status: early.** The plugin runs and the mechanism is proven end to end, but this is a personal tool being built in the open. Expect sharp edges.
+Everyone calls `--dangerously-skip-permissions` "YOLO mode." 
 
 ## Credit
 
@@ -172,22 +170,12 @@ Stream Deck app supervises the plugin and respawns it with the current build:
 Get-NetTCPConnection -LocalPort 9200 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
 
-Costs several minutes of confusion if you trust the CLI's output over the pid.
-
-E2E tests use [testagent](https://github.com/paultyng/testagent), a deterministic fake of the Claude Code CLI (no model, no API key). They skip when it isn't on PATH.
-
-`spike/` holds the throwaway that validated the premise before any of this was built — see [PLAN.md](PLAN.md) for what it proved.
-
 ## Configuration
 
 | Env var | Default | Effect |
 |---|---|---|
 | `YOLODECK_TOKEN` | unset | Shared secret required in the `Authorization` header. **Set this.** |
 | `YOLODECK_DEBUG` | unset | When `1`, exposes `GET /debug/sessions` with a JSON snapshot of tracked sessions. |
-
-## Roadmap
-
-See [PLAN.md](PLAN.md). Next up: pinned session slots keyed by project path, profile switching from a front-page status key, a rate-limit key fed by the statusLine JSON, and a slow breathe on the mode key when permissions are bypassed.
 
 ## License
 
