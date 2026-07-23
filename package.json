@@ -32,12 +32,12 @@
   },
   "devDependencies": {
     "@elgato/cli": "^1.7.3",
-    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
     "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.1.6",
-    "rollup": "^4.60.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "rollup": "^4.62.2",
     "tslib": "^2.8.1",
     "typescript": "^6.0.2",
     "vitest": "^4.1.6"
