@@ -27,17 +27,17 @@
   "author": "Michael Pusateri",
   "license": "MIT",
   "dependencies": {
-    "@elgato/streamdeck": "^2.0.4",
+    "@elgato/streamdeck": "^2.1.2",
     "opentype.js": "^2.0.0"
   },
   "devDependencies": {
-    "@elgato/cli": "^1.7.3",
-    "@rollup/plugin-commonjs": "^29.0.2",
+    "@elgato/cli": "^1.8.1",
+    "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
     "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.1.6",
-    "rollup": "^4.60.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "rollup": "^4.62.4",
     "tslib": "^2.8.1",
     "typescript": "^6.0.2",
     "vitest": "^4.1.6"
